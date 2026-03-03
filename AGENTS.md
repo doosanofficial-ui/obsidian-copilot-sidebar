@@ -33,6 +33,13 @@
 - CLI 실행: `/cli-execute <태스크 ID>` 실행
 - Cloud 검증: `/cloud-validate <브랜치 또는 SHA>` + `npm run cloud:dispatch`/`npm run cloud:status`
 
+## Branch And Review Model
+
+- 기본 브랜치 전략: `main`은 머지 전용, 구현은 `feat/*` 또는 `chore/*` 브랜치에서 진행
+- 병렬 레인 실행: `npm run lane:worktree:setup`으로 worktree 3개(Subagent/CLI/Cloud) 준비
+- PR 기반 리뷰: 모든 구현 브랜치는 PR 생성 후 리뷰 승인 + Validation 성공 시 머지
+- 리뷰 상태 확인: `npm run review:status`
+
 ## Process Rules
 
 - 각 태스크는 단일 목적, 단일 검증 명령을 가져야 한다.

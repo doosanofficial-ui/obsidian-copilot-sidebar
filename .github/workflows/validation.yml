@@ -25,6 +25,9 @@ jobs:
           test -f .github/prompts/subagent-check.prompt.md
           test -f .github/prompts/cli-execute.prompt.md
           test -f .github/prompts/cloud-validate.prompt.md
+          test -f .github/CODEOWNERS
+          test -f .github/pull_request_template.md
+          test -f .github/instructions/worktree-review.instructions.md
 
   copilot-cli-fast-gate:
     name: copilot-cli-fast-gate

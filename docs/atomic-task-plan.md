@@ -70,3 +70,14 @@
 - SDK 우선 경로 선택(SdkAdapter vs CliBridgeAdapter)
 - 인증 플로우 선택(Device Flow vs OAuth)
 - 스트리밍 UX 레벨(토큰 단위/문단 단위)
+
+## 8) Iteration 3 (Governance) 고정 태스크
+
+| ID | 목표 | 담당 | 독립 검증 기준 |
+|---|---|---|---|
+| G01 | worktree 병렬 실행 준비 | Copilot CLI | `npm run lane:worktree:setup` |
+| G02 | worktree 상태 점검 | Copilot CLI | `npm run lane:worktree:status` |
+| G03 | PR 리뷰 템플릿/오너 지정 | Copilot CLI | `.github/pull_request_template.md`, `.github/CODEOWNERS` 존재 |
+| G04 | main 브랜치 보호 적용 | Cloud Agent | `npm run branch:protect:main` 성공 |
+| G05 | 보호 설정 상태 검증 | Cloud Agent | `npm run branch:protect:status` 성공 |
+| G06 | PR 기반 리뷰 확인 | Cloud Agent | `npm run review:status`에서 PR/체크 상태 확인 |

@@ -17,6 +17,18 @@
 - CLI는 할당된 구현 태스크만 수행하고 필수 게이트를 통과시킨다.
 - Cloud는 `Validation` 워크플로우 실행 및 결과 검증(요약/아티팩트)으로 종료한다.
 
+## Branch And Worktree Protocol
+
+- 구현 작업은 `main` 직접 수정 대신 기능 브랜치에서 수행한다.
+- 병렬 태스크는 `git worktree`로 레인별 작업 디렉터리를 분리한다.
+- 기본 준비 명령: `npm run lane:worktree:setup`.
+
+## GitHub Review Protocol
+
+- 구현 브랜치는 PR을 열고 리뷰 승인 후 머지한다.
+- 리뷰 진행 상태는 `npm run review:status`로 확인한다.
+- `main` 보호 설정은 `npm run branch:protect:main`으로 적용/유지한다.
+
 ## Interview Gate
 
 - 제품/정책/스코프 선택이 필요한 지점만 인터뷰 질문으로 사용자에게 확인한다.
