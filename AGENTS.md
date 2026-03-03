@@ -38,6 +38,7 @@
 - 기본 브랜치 전략: `main`은 머지 전용, 구현은 `feat/*` 또는 `chore/*` 브랜치에서 진행
 - 병렬 레인 실행: `npm run lane:worktree:setup`으로 worktree 3개(Subagent/CLI/Cloud) 준비
 - PR 기반 리뷰: 모든 구현 브랜치는 PR 생성 후 리뷰 승인 + Validation 성공 시 머지
+- 단일 협업자 저장소는 self-approval 제약이 있으므로 `npm run branch:protect:main` solo mode(승인 0) 적용 후 머지
 - 리뷰 상태 확인: `npm run review:status`
 
 ## Process Rules

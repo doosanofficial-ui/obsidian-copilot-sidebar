@@ -26,6 +26,7 @@
 ## GitHub Review Protocol
 
 - 구현 브랜치는 PR을 열고 리뷰 승인 후 머지한다.
+- 단일 협업자 저장소에서 self-approval이 불가능하면 `npm run branch:protect:main`의 solo mode(승인 0) 예외를 적용한다.
 - 리뷰 진행 상태는 `npm run review:status`로 확인한다.
 - `main` 보호 설정은 `npm run branch:protect:main`으로 적용/유지한다.
 

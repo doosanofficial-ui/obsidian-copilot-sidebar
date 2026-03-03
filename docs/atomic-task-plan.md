@@ -81,3 +81,4 @@
 | G04 | main 브랜치 보호 적용 | Cloud Agent | `npm run branch:protect:main` 성공 |
 | G05 | 보호 설정 상태 검증 | Cloud Agent | `npm run branch:protect:status` 성공 |
 | G06 | PR 기반 리뷰 확인 | Cloud Agent | `npm run review:status`에서 PR/체크 상태 확인 |
+| G07 | 단일 협업자 solo mode 검증 | Cloud Agent | `npm run branch:protect:status`에서 `reviewPolicyMode=solo` 확인 |

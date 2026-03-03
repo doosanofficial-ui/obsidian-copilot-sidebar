@@ -31,16 +31,35 @@ function parseRepoFromRemote(url) {
   throw new Error(`unsupported remote url: ${url}`);
 }
 
+function fetchCollaboratorLogins(owner, name) {
+  const output = run(
+    "gh",
+    ["api", `repos/${owner}/${name}/collaborators`],
+    "list repository collaborators"
+  ).stdout;
+
+  const parsed = JSON.parse(output);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed
+    .map((item) => item?.login)
+    .filter((login) => typeof login === "string" && login.length > 0);
+}
+
 const remote = run("git", ["config", "--get", "remote.origin.url"], "get origin url").stdout.trim();
 const { owner, name } = parseRepoFromRemote(remote);
+const collaborators = fetchCollaboratorLogins(owner, name);
+const soloMode = collaborators.length <= 1;
 
 const body = {
   required_status_checks: null,
   enforce_admins: true,
   required_pull_request_reviews: {
     dismiss_stale_reviews: true,
-    require_code_owner_reviews: true,
-    required_approving_review_count: 1,
+    require_code_owner_reviews: !soloMode,
+    required_approving_review_count: soloMode ? 0 : 1,
     require_last_push_approval: false
   },
   restrictions: null,
@@ -63,4 +82,10 @@ run(
 );
 
 console.log(`[branch:protect:main] protection applied to ${owner}/${name}`);
-console.log("[branch:protect:main] required: PR review 1+, code owner review, conversation resolution, linear history");
+if (soloMode) {
+  console.log("[branch:protect:main] mode=solo (single collaborator detected)");
+  console.log("[branch:protect:main] required: PR merge path + checks + conversation resolution + linear history (approval optional)");
+} else {
+  console.log("[branch:protect:main] mode=team");
+  console.log("[branch:protect:main] required: PR review 1+, code owner review, conversation resolution, linear history");
+}

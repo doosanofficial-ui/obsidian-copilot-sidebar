@@ -30,8 +30,27 @@ function parseRepoFromRemote(url) {
   throw new Error(`unsupported remote url: ${url}`);
 }
 
+function fetchCollaboratorLogins(owner, name) {
+  const output = run(
+    "gh",
+    ["api", `repos/${owner}/${name}/collaborators`],
+    "list repository collaborators"
+  );
+
+  const parsed = JSON.parse(output);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed
+    .map((item) => item?.login)
+    .filter((login) => typeof login === "string" && login.length > 0);
+}
+
 const remote = run("git", ["config", "--get", "remote.origin.url"], "get origin url").trim();
 const { owner, name } = parseRepoFromRemote(remote);
+const collaborators = fetchCollaboratorLogins(owner, name);
+const soloMode = collaborators.length <= 1;
 
 const output = run(
   "gh",
@@ -41,6 +60,8 @@ const output = run(
 
 const data = JSON.parse(output);
 console.log(`[branch:protect:status] repo=${owner}/${name}`);
+console.log(`collaboratorCount=${collaborators.length}`);
+console.log(`reviewPolicyMode=${soloMode ? "solo" : "team"}`);
 console.log(`requiredApprovals=${data.required_pull_request_reviews?.required_approving_review_count ?? 0}`);
 console.log(`requireCodeOwner=${Boolean(data.required_pull_request_reviews?.require_code_owner_reviews)}`);
 console.log(`dismissStale=${Boolean(data.required_pull_request_reviews?.dismiss_stale_reviews)}`);
