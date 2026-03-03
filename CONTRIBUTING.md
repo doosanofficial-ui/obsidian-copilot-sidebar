@@ -3,7 +3,9 @@
 ## 브랜치 전략
 
 - `main`: 배포 가능한 안정 브랜치
-- 기능 개발은 `feature/*` 브랜치에서 진행
+- 기능 개발은 `feature/*`, `feat/*`, `chore/*` 브랜치에서 진행
+- `main` 직접 커밋 금지, PR 머지 전용으로 운영
+- 병렬 작업 시 `npm run lane:worktree:setup`으로 worktree 분리 권장
 
 ## 커밋 규칙
 
@@ -17,6 +19,7 @@
 - UI 변경 시 캡처 또는 짧은 동영상 첨부
 - 스펙 변경은 `docs/requirements.md` 동기화
 - 작업 분해/역할 할당은 `docs/atomic-task-plan.md`, `docs/agent-workflow.md` 기준으로 수행
+- CODEOWNERS 리뷰와 Validation 성공 후 머지
 
 ## 검증 게이트
 

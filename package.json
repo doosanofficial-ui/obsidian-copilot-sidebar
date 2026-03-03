@@ -14,7 +14,13 @@
     "verify:tracked": "node scripts/verify-tracked.mjs",
     "progress:watch": "node scripts/progress-watch.mjs",
     "cloud:dispatch": "node scripts/cloud-dispatch.mjs",
-    "cloud:status": "node scripts/cloud-status.mjs"
+    "cloud:status": "node scripts/cloud-status.mjs",
+    "lane:worktree:setup": "node scripts/worktree-setup.mjs",
+    "lane:worktree:status": "node scripts/worktree-status.mjs",
+    "lane:worktree:prune": "git worktree prune",
+    "review:status": "node scripts/review-status.mjs",
+    "branch:protect:main": "node scripts/main-branch-protect.mjs",
+    "branch:protect:status": "node scripts/main-branch-protection-status.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
