@@ -1,0 +1,9 @@
+{
+  "id": "copilot-sidebar",
+  "name": "Copilot Sidebar",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Obsidian sidebar plugin draft that targets GitHub Copilot CLI feature parity.",
+  "author": "doosanofficial-ui",
+  "isDesktopOnly": true
+}

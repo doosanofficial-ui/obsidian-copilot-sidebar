@@ -1,0 +1,14 @@
+.copilot-sidebar-root {
+  padding: 12px;
+}
+
+.copilot-sidebar-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.copilot-sidebar-description {
+  font-size: 12px;
+  color: var(--text-muted);
+}
