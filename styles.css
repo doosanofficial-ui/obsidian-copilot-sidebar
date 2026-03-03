@@ -40,7 +40,7 @@
 
 .copilot-sidebar-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -90,11 +90,29 @@
 }
 
 .copilot-session-list,
+.copilot-context-list,
 .copilot-pending-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-height: 0;
+}
+
+.copilot-context-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.copilot-context-path {
+  font-size: 11px;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .copilot-session-row {
@@ -143,6 +161,11 @@
   gap: 4px;
 }
 
+.copilot-pending-row.is-selected {
+  border-color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+}
+
 .copilot-pending-summary {
   font-size: 12px;
   font-weight: 600;
@@ -151,6 +174,12 @@
 .copilot-pending-path {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.copilot-pending-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .copilot-sidebar-pane-chat {
@@ -196,6 +225,61 @@
   font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;
+}
+
+.copilot-preview-panel {
+  border-top: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--background-secondary);
+}
+
+.copilot-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.copilot-preview-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.copilot-preview-summary {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.copilot-preview-path {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.copilot-preview-diff {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.copilot-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .copilot-composer {

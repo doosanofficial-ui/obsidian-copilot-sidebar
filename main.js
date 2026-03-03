@@ -27,7 +27,9 @@ var import_obsidian = require("obsidian");
 var VIEW_TYPE_COPILOT_SIDEBAR = "copilot-sidebar-view";
 var MAX_SESSIONS = 20;
 var MAX_PENDING_CHANGES = 10;
+var MAX_ADDITIONAL_CONTEXT = 8;
 var STREAM_DELAY_MS = 30;
+var PREVIEW_MAX_LINES = 120;
 var AUTH_ORDER = ["logged-in", "no-entitlement", "token-expired", "offline"];
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -48,6 +50,8 @@ function defaultSettings() {
     sessions: [session],
     activeSessionId: session.id,
     pendingChanges: [],
+    additionalContextPaths: [],
+    lastAppliedChange: null,
     authState: "logged-in",
     model: "gpt-5.3-codex",
     contextPolicy: "selection-first",
@@ -62,6 +66,58 @@ function isContextPolicy(value) {
 }
 function isMessageRole(value) {
   return value === "user" || value === "assistant" || value === "system";
+}
+function normalizeAppliedChange(raw) {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const source = raw;
+  if (!source.id || !source.notePath) {
+    return null;
+  }
+  return {
+    id: String(source.id),
+    notePath: String(source.notePath),
+    before: typeof source.before === "string" ? source.before : "",
+    after: typeof source.after === "string" ? source.after : "",
+    summary: typeof source.summary === "string" ? source.summary : "Applied suggestion",
+    appliedAt: typeof source.appliedAt === "number" ? source.appliedAt : Date.now()
+  };
+}
+function buildPreviewDiff(before, after) {
+  const beforeLines = before.split("\n");
+  const afterLines = after.split("\n");
+  const out = ["--- before", "+++ after"];
+  const maxLines = Math.max(beforeLines.length, afterLines.length);
+  let changedLines = 0;
+  for (let i = 0; i < maxLines; i += 1) {
+    const left = beforeLines[i];
+    const right = afterLines[i];
+    if (left === right) {
+      continue;
+    }
+    if (typeof left === "string") {
+      out.push(`- ${left}`);
+      changedLines += 1;
+      if (changedLines >= PREVIEW_MAX_LINES) {
+        break;
+      }
+    }
+    if (typeof right === "string") {
+      out.push(`+ ${right}`);
+      changedLines += 1;
+      if (changedLines >= PREVIEW_MAX_LINES) {
+        break;
+      }
+    }
+  }
+  if (changedLines === 0) {
+    out.push("No textual delta detected.");
+  }
+  if (changedLines >= PREVIEW_MAX_LINES) {
+    out.push(`... preview truncated to ${PREVIEW_MAX_LINES} changed lines`);
+  }
+  return out.join("\n");
 }
 function normalizeSettings(raw) {
   const fallback = defaultSettings();
@@ -95,10 +151,14 @@ function normalizeSettings(raw) {
     summary: typeof change.summary === "string" ? change.summary : "Generated suggestion",
     createdAt: typeof change.createdAt === "number" ? change.createdAt : Date.now()
   })) : [];
+  const additionalContextPaths = Array.isArray(source.additionalContextPaths) ? Array.from(new Set(source.additionalContextPaths.filter((notePath) => typeof notePath === "string").map((notePath) => notePath.trim()).filter((notePath) => notePath.length > 0))).slice(0, MAX_ADDITIONAL_CONTEXT) : [];
+  const lastAppliedChange = normalizeAppliedChange(source.lastAppliedChange);
   return {
     sessions: normalizedSessions,
     activeSessionId,
     pendingChanges,
+    additionalContextPaths,
+    lastAppliedChange,
     authState: isAuthState(source.authState) ? source.authState : fallback.authState,
     model: typeof source.model === "string" && source.model.trim().length > 0 ? source.model : fallback.model,
     contextPolicy: isContextPolicy(source.contextPolicy) ? source.contextPolicy : fallback.contextPolicy,
@@ -137,6 +197,10 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
       text: "Apply Pending",
       cls: "copilot-button"
     });
+    const addContextButton = controlRow.createEl("button", {
+      text: "Add Active Context",
+      cls: "copilot-button"
+    });
     const authCycleButton = controlRow.createEl("button", {
       text: "Cycle Auth",
       cls: "copilot-button"
@@ -145,10 +209,13 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     const leftPane = layout.createDiv({ cls: "copilot-sidebar-pane copilot-sidebar-pane-sessions" });
     leftPane.createDiv({ text: "Sessions", cls: "copilot-pane-title" });
     const sessionList = leftPane.createDiv({ cls: "copilot-session-list" });
+    leftPane.createDiv({ text: "Context Notes", cls: "copilot-pane-title" });
+    const contextList = leftPane.createDiv({ cls: "copilot-context-list" });
     leftPane.createDiv({ text: "Pending Changes", cls: "copilot-pane-title" });
     const pendingList = leftPane.createDiv({ cls: "copilot-pending-list" });
     const rightPane = layout.createDiv({ cls: "copilot-sidebar-pane copilot-sidebar-pane-chat" });
     const messages = rightPane.createDiv({ cls: "copilot-message-list" });
+    const previewPanel = rightPane.createDiv({ cls: "copilot-preview-panel" });
     const composer = rightPane.createDiv({ cls: "copilot-composer" });
     const composerInput = composer.createEl("textarea", {
       cls: "copilot-composer-input"
@@ -167,6 +234,9 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     applyButton.addEventListener("click", () => {
       void this.plugin.applyNextPendingChange();
     });
+    addContextButton.addEventListener("click", () => {
+      void this.plugin.addActiveNoteToContext();
+    });
     authCycleButton.addEventListener("click", () => {
       void this.plugin.cycleAuthState();
     });
@@ -183,8 +253,10 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
       title,
       authBadge,
       sessionList,
+      contextList,
       pendingList,
       messages,
+      previewPanel,
       composerInput,
       composerButton
     };
@@ -204,8 +276,10 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     this.elements.authBadge.setText(`Auth: ${snapshot.authState}`);
     this.elements.authBadge.className = `copilot-auth-badge auth-${snapshot.authState}`;
     this.renderSessions(snapshot);
+    this.renderContextNotes(snapshot);
     this.renderPendingChanges(snapshot);
     this.renderMessages(activeSession);
+    this.renderPreview(snapshot);
     this.elements.composerButton.disabled = snapshot.isStreaming;
     this.elements.composerInput.disabled = snapshot.isStreaming;
     this.elements.composerInput.placeholder = snapshot.authState === "logged-in" ? "Ask Copilot about this vault..." : "Auth state is not logged-in. Use Cycle Auth (mock) to simulate recovery.";
@@ -246,17 +320,102 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
       return;
     }
     for (const change of snapshot.pendingChanges) {
-      const row = list.createDiv({ cls: "copilot-pending-row" });
+      const selectedClass = change.id === snapshot.selectedPendingChangeId ? " is-selected" : "";
+      const row = list.createDiv({ cls: `copilot-pending-row${selectedClass}` });
       row.createDiv({ text: change.summary, cls: "copilot-pending-summary" });
       row.createDiv({ text: change.notePath, cls: "copilot-pending-path" });
-      const applyButton = row.createEl("button", {
+      const actions = row.createDiv({ cls: "copilot-pending-actions" });
+      const previewButton = actions.createEl("button", {
+        text: "Preview",
+        cls: "copilot-session-switch"
+      });
+      const applyButton = actions.createEl("button", {
         text: "Apply",
         cls: "copilot-session-switch"
+      });
+      const discardButton = actions.createEl("button", {
+        text: "Discard",
+        cls: "copilot-session-delete"
+      });
+      previewButton.addEventListener("click", () => {
+        void this.plugin.selectPendingChange(change.id);
       });
       applyButton.addEventListener("click", () => {
         void this.plugin.applyPendingChange(change.id);
       });
+      discardButton.addEventListener("click", () => {
+        void this.plugin.discardPendingChange(change.id);
+      });
     }
+  }
+  renderContextNotes(snapshot) {
+    if (!this.elements) {
+      return;
+    }
+    const list = this.elements.contextList;
+    list.empty();
+    if (snapshot.additionalContextPaths.length === 0) {
+      list.createDiv({ text: "No additional context notes.", cls: "copilot-empty-state" });
+      return;
+    }
+    for (const notePath of snapshot.additionalContextPaths) {
+      const row = list.createDiv({ cls: "copilot-context-row" });
+      row.createDiv({ text: notePath, cls: "copilot-context-path" });
+      const removeButton = row.createEl("button", {
+        text: "Remove",
+        cls: "copilot-session-delete"
+      });
+      removeButton.addEventListener("click", () => {
+        void this.plugin.removeContextPath(notePath);
+      });
+    }
+  }
+  renderPreview(snapshot) {
+    if (!this.elements) {
+      return;
+    }
+    const panel = this.elements.previewPanel;
+    panel.empty();
+    const header = panel.createDiv({ cls: "copilot-preview-header" });
+    header.createDiv({ text: "Change Preview", cls: "copilot-preview-title" });
+    const undoButton = header.createEl("button", {
+      text: "Undo Last Apply",
+      cls: "copilot-session-switch"
+    });
+    undoButton.disabled = !snapshot.lastAppliedChange;
+    undoButton.addEventListener("click", () => {
+      void this.plugin.undoLastAppliedChange();
+    });
+    const selected = snapshot.pendingChanges.find((change) => change.id === snapshot.selectedPendingChangeId);
+    if (!selected) {
+      panel.createDiv({ text: "Choose a pending change to preview diff.", cls: "copilot-empty-state" });
+      if (snapshot.lastAppliedChange) {
+        panel.createDiv({
+          text: `Last applied: ${snapshot.lastAppliedChange.summary} (${snapshot.lastAppliedChange.notePath})`,
+          cls: "copilot-preview-summary"
+        });
+      }
+      return;
+    }
+    panel.createDiv({ text: selected.summary, cls: "copilot-preview-summary" });
+    panel.createDiv({ text: selected.notePath, cls: "copilot-preview-path" });
+    const diff = panel.createEl("pre", { cls: "copilot-preview-diff" });
+    diff.setText(this.plugin.buildPendingPreview(selected));
+    const actions = panel.createDiv({ cls: "copilot-preview-actions" });
+    const applyButton = actions.createEl("button", {
+      text: "Apply Previewed Change",
+      cls: "copilot-button"
+    });
+    const discardButton = actions.createEl("button", {
+      text: "Discard Previewed Change",
+      cls: "copilot-button"
+    });
+    applyButton.addEventListener("click", () => {
+      void this.plugin.applyPendingChange(selected.id);
+    });
+    discardButton.addEventListener("click", () => {
+      void this.plugin.discardPendingChange(selected.id);
+    });
   }
   renderMessages(activeSession) {
     if (!this.elements) {
@@ -297,6 +456,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     this.views = /* @__PURE__ */ new Set();
     this.streaming = false;
     this.activeStreamTimers = /* @__PURE__ */ new Set();
+    this.selectedPendingChangeId = null;
   }
   async onload() {
     await this.loadSettings();
@@ -329,6 +489,13 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
         await this.startNewSession();
       }
     });
+    this.addCommand({
+      id: "undo-last-applied-change",
+      name: "Undo last applied change",
+      callback: async () => {
+        await this.undoLastAppliedChange();
+      }
+    });
   }
   async onunload() {
     for (const timer of this.activeStreamTimers) {
@@ -344,6 +511,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     this.views.delete(view);
   }
   getSnapshot() {
+    const selectedPendingChangeId = this.settings.pendingChanges.some((change) => change.id === this.selectedPendingChangeId) ? this.selectedPendingChangeId : null;
     return {
       sessions: this.settings.sessions.map((session) => ({
         ...session,
@@ -351,10 +519,16 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       })),
       activeSessionId: this.settings.activeSessionId,
       pendingChanges: this.settings.pendingChanges.map((change) => ({ ...change })),
+      selectedPendingChangeId,
+      additionalContextPaths: [...this.settings.additionalContextPaths],
+      lastAppliedChange: this.settings.lastAppliedChange ? { ...this.settings.lastAppliedChange } : null,
       authState: this.settings.authState,
       model: this.settings.model,
       isStreaming: this.streaming
     };
+  }
+  buildPendingPreview(change) {
+    return buildPreviewDiff(change.before, change.after);
   }
   async setActiveSession(sessionId) {
     if (!this.settings.sessions.some((session) => session.id === sessionId)) {
@@ -387,6 +561,37 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     this.settings.authState = AUTH_ORDER[nextIndex];
     await this.persistAndRender();
   }
+  async addActiveNoteToContext() {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!(activeFile instanceof import_obsidian.TFile)) {
+      new import_obsidian.Notice("Open a note first to add explicit context.");
+      return;
+    }
+    if (this.settings.additionalContextPaths.includes(activeFile.path)) {
+      new import_obsidian.Notice("This note is already in additional context.");
+      return;
+    }
+    this.settings.additionalContextPaths = [activeFile.path, ...this.settings.additionalContextPaths].slice(0, MAX_ADDITIONAL_CONTEXT);
+    await this.persistAndRender();
+    new import_obsidian.Notice(`Added context note: ${activeFile.path}`);
+  }
+  async removeContextPath(notePath) {
+    const next = this.settings.additionalContextPaths.filter((path) => path !== notePath);
+    if (next.length === this.settings.additionalContextPaths.length) {
+      return;
+    }
+    this.settings.additionalContextPaths = next;
+    await this.persistAndRender();
+  }
+  async selectPendingChange(changeId) {
+    if (!changeId || !this.settings.pendingChanges.some((change) => change.id === changeId)) {
+      this.selectedPendingChangeId = null;
+    } else {
+      this.selectedPendingChangeId = changeId;
+    }
+    this.syncSelectedPendingChange();
+    this.renderViews();
+  }
   async askAboutCurrentNote() {
     await this.activateView();
     const context = await this.getPromptContext();
@@ -403,13 +608,48 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     if (!(target instanceof import_obsidian.TFile)) {
       new import_obsidian.Notice(`Target note no longer exists: ${change.notePath}`);
       this.settings.pendingChanges = this.settings.pendingChanges.filter((item) => item.id !== changeId);
+      this.syncSelectedPendingChange();
       await this.persistAndRender();
       return;
     }
     await this.app.vault.modify(target, change.after);
+    this.settings.lastAppliedChange = {
+      ...change,
+      appliedAt: Date.now()
+    };
     this.settings.pendingChanges = this.settings.pendingChanges.filter((item) => item.id !== changeId);
+    this.syncSelectedPendingChange();
     await this.persistAndRender();
     new import_obsidian.Notice(`Applied change to ${change.notePath}`);
+  }
+  async discardPendingChange(changeId) {
+    const beforeCount = this.settings.pendingChanges.length;
+    this.settings.pendingChanges = this.settings.pendingChanges.filter((change) => change.id !== changeId);
+    if (this.settings.pendingChanges.length === beforeCount) {
+      new import_obsidian.Notice("Pending change not found.");
+      return;
+    }
+    this.syncSelectedPendingChange();
+    await this.persistAndRender();
+    new import_obsidian.Notice("Discarded pending change.");
+  }
+  async undoLastAppliedChange() {
+    const last = this.settings.lastAppliedChange;
+    if (!last) {
+      new import_obsidian.Notice("No applied change to undo.");
+      return;
+    }
+    const target = this.app.vault.getAbstractFileByPath(last.notePath);
+    if (!(target instanceof import_obsidian.TFile)) {
+      new import_obsidian.Notice(`Cannot undo. Note not found: ${last.notePath}`);
+      this.settings.lastAppliedChange = null;
+      await this.persistAndRender();
+      return;
+    }
+    await this.app.vault.modify(target, last.before);
+    this.settings.lastAppliedChange = null;
+    await this.persistAndRender();
+    new import_obsidian.Notice(`Reverted last applied change in ${last.notePath}`);
   }
   async applyNextPendingChange() {
     const first = this.settings.pendingChanges[0];
@@ -457,11 +697,13 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     session.updatedAt = Date.now();
     this.streaming = false;
     await this.maybeCreatePendingChange(trimmed, response, context);
+    this.syncSelectedPendingChange();
     await this.persistAndRender();
   }
   async loadSettings() {
     const saved = await this.loadData();
     this.settings = normalizeSettings(saved);
+    this.syncSelectedPendingChange();
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -503,6 +745,15 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     }
     return activeSession;
   }
+  syncSelectedPendingChange() {
+    if (this.settings.pendingChanges.length === 0) {
+      this.selectedPendingChangeId = null;
+      return;
+    }
+    if (!this.selectedPendingChangeId || !this.settings.pendingChanges.some((change) => change.id === this.selectedPendingChangeId)) {
+      this.selectedPendingChangeId = this.settings.pendingChanges[0].id;
+    }
+  }
   async getPromptContext() {
     const activeFile = this.app.workspace.getActiveFile();
     let notePath = null;
@@ -513,21 +764,44 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     }
     const markdownView = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
     const selection = markdownView?.editor?.getSelection()?.trim() ?? "";
+    const additionalNotes = await this.collectAdditionalContextNotes(notePath);
     return {
       notePath,
       noteContent,
-      selection
+      selection,
+      additionalNotes
     };
+  }
+  async collectAdditionalContextNotes(activePath) {
+    const notes = [];
+    for (const notePath of this.settings.additionalContextPaths) {
+      if (notePath === activePath) {
+        continue;
+      }
+      const file = this.app.vault.getAbstractFileByPath(notePath);
+      if (!(file instanceof import_obsidian.TFile)) {
+        continue;
+      }
+      const content = await this.app.vault.cachedRead(file);
+      notes.push({ path: notePath, content });
+    }
+    return notes;
   }
   composeMockResponse(prompt, context) {
     if (this.settings.authState !== "logged-in") {
       return `Auth state is ${this.settings.authState}. Re-authenticate before sending production requests.`;
     }
-    const contextSource = this.settings.contextPolicy === "selection-first" && context.selection ? `Selection context: ${context.selection.slice(0, 220)}` : context.noteContent ? `Note context: ${context.noteContent.slice(0, 220)}` : "No active note context available.";
+    const selectionSummary = context.selection ? `Selection context: ${context.selection.slice(0, 220)}` : "Selection context: <empty>";
+    const noteSummary = context.noteContent ? `Active note context: ${context.noteContent.slice(0, 220)}` : "Active note context: <empty>";
+    const additionalSummary = context.additionalNotes.length > 0 ? context.additionalNotes.map((note) => `${note.path}: ${note.content.slice(0, 120)}`).join(" | ") : "No explicit additional note contexts.";
+    const primaryContext = this.settings.contextPolicy === "selection-first" ? selectionSummary : noteSummary;
+    const secondaryContext = this.settings.contextPolicy === "selection-first" ? noteSummary : selectionSummary;
     return [
       `Model ${this.settings.model} mock response:`,
       `Prompt: ${prompt}`,
-      contextSource,
+      `Primary context (${this.settings.contextPolicy}): ${primaryContext}`,
+      `Secondary context: ${secondaryContext}`,
+      `Merged additional context: ${additionalSummary}`,
       "Suggested next steps:",
       "1. Validate key claims in your note.",
       "2. Refine structure with clear headings.",
@@ -551,10 +825,11 @@ ${response}
       notePath: context.notePath,
       before: context.noteContent,
       after,
-      summary: "Append assistant suggestion to active note",
+      summary: `Append assistant suggestion to ${context.notePath}`,
       createdAt: Date.now()
     };
     this.settings.pendingChanges = [pending, ...this.settings.pendingChanges].slice(0, MAX_PENDING_CHANGES);
+    this.selectedPendingChangeId = pending.id;
     new import_obsidian.Notice(`Pending change created for ${context.notePath}`);
   }
   async delay(ms) {
