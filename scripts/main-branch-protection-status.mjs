@@ -14,6 +14,23 @@ function run(command, args, label) {
   return result.stdout;
 }
 
+function runAllowFail(command, args) {
+  const result = spawnSync(command, args, { encoding: "utf8" });
+  return result;
+}
+
+function ensureGhReady() {
+  const ghVersion = runAllowFail("gh", ["--version"]);
+  if (ghVersion.error || ghVersion.status !== 0) {
+    throw new Error("[branch:protect:status] gh CLI is required. Install gh and authenticate first.");
+  }
+
+  const auth = runAllowFail("gh", ["auth", "status"]);
+  if (auth.error || auth.status !== 0) {
+    throw new Error("[branch:protect:status] gh auth is required. Run `gh auth login`.");
+  }
+}
+
 function parseRepoFromRemote(url) {
   if (url.startsWith("git@github.com:")) {
     const slug = url.replace("git@github.com:", "").replace(/\.git$/, "");
@@ -49,6 +66,7 @@ function fetchCollaboratorLogins(owner, name) {
 
 const remote = run("git", ["config", "--get", "remote.origin.url"], "get origin url").trim();
 const { owner, name } = parseRepoFromRemote(remote);
+ensureGhReady();
 const collaborators = fetchCollaboratorLogins(owner, name);
 const soloMode = collaborators.length <= 1;
 
@@ -67,3 +85,5 @@ console.log(`requireCodeOwner=${Boolean(data.required_pull_request_reviews?.requ
 console.log(`dismissStale=${Boolean(data.required_pull_request_reviews?.dismiss_stale_reviews)}`);
 console.log(`requiredConversationResolution=${Boolean(data.required_conversation_resolution?.enabled)}`);
 console.log(`linearHistory=${Boolean(data.required_linear_history?.enabled)}`);
+console.log(`statusChecksStrict=${Boolean(data.required_status_checks?.strict)}`);
+console.log(`statusCheckContexts=${(data.required_status_checks?.contexts ?? []).join(",")}`);

@@ -3,6 +3,9 @@ import { spawnSync } from "node:child_process";
 function run(command, args, label, allowFail = false, input) {
   const result = spawnSync(command, args, { encoding: "utf8", input });
   if (result.error) {
+    if (allowFail) {
+      return result;
+    }
     throw result.error;
   }
 
@@ -13,6 +16,18 @@ function run(command, args, label, allowFail = false, input) {
   }
 
   return result;
+}
+
+function ensureGhReady() {
+  const ghVersion = run("gh", ["--version"], "check gh availability", true);
+  if (ghVersion.status !== 0) {
+    throw new Error("[branch:protect:main] gh CLI is required. Install gh and authenticate first.");
+  }
+
+  const auth = run("gh", ["auth", "status"], "gh auth status", true);
+  if (auth.status !== 0) {
+    throw new Error("[branch:protect:main] gh auth is required. Run `gh auth login`.");
+  }
 }
 
 function parseRepoFromRemote(url) {
@@ -50,11 +65,16 @@ function fetchCollaboratorLogins(owner, name) {
 
 const remote = run("git", ["config", "--get", "remote.origin.url"], "get origin url").stdout.trim();
 const { owner, name } = parseRepoFromRemote(remote);
+ensureGhReady();
 const collaborators = fetchCollaboratorLogins(owner, name);
 const soloMode = collaborators.length <= 1;
+const requiredChecks = ["subagent-contract", "copilot-cli-fast-gate", "cloud-agent-runtime-e2e"];
 
 const body = {
-  required_status_checks: null,
+  required_status_checks: {
+    strict: true,
+    contexts: requiredChecks
+  },
   enforce_admins: true,
   required_pull_request_reviews: {
     dismiss_stale_reviews: true,
@@ -72,7 +92,6 @@ const body = {
   allow_fork_syncing: true
 };
 
-run("gh", ["auth", "status"], "gh auth status");
 run(
   "gh",
   ["api", "-X", "PUT", `repos/${owner}/${name}/branches/main/protection`, "--input", "-"],
@@ -84,8 +103,8 @@ run(
 console.log(`[branch:protect:main] protection applied to ${owner}/${name}`);
 if (soloMode) {
   console.log("[branch:protect:main] mode=solo (single collaborator detected)");
-  console.log("[branch:protect:main] required: PR merge path + checks + conversation resolution + linear history (approval optional)");
+  console.log("[branch:protect:main] required: status checks + PR merge path + conversation resolution + linear history (approval optional)");
 } else {
   console.log("[branch:protect:main] mode=team");
-  console.log("[branch:protect:main] required: PR review 1+, code owner review, conversation resolution, linear history");
+  console.log("[branch:protect:main] required: status checks + PR review 1+ + code owner review + conversation resolution + linear history");
 }

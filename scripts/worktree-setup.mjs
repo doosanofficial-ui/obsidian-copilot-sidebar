@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
@@ -87,6 +88,12 @@ console.log(`[worktree:setup] baseRef=${baseRef}`);
 
 for (const cfg of laneConfigs) {
   const targetPath = path.resolve(worktreeRoot, `${repoName}-wt-${cfg.lane}`);
+
+  if (!existingPaths.has(targetPath) && existsSync(targetPath)) {
+    console.log(`[warn] lane=${cfg.lane} path exists but is not a registered worktree: ${targetPath}`);
+    console.log("[warn] remove the directory or change LANE_WORKTREE_ROOT, then rerun setup");
+    continue;
+  }
 
   if (existingPaths.has(targetPath)) {
     console.log(`[skip] lane=${cfg.lane} path already exists as worktree: ${targetPath}`);
