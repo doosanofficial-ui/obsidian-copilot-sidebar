@@ -26,6 +26,13 @@
 - 로컬 산출물: `.tmp/agent-progress.json`, `.tmp/agent-progress.md`, `.tmp/agent-progress-logs/*.log`
 - Cloud 산출물: `Validation` 워크플로우의 Step Summary + `cloud-agent-progress` 아티팩트
 
+## Task Assignment
+
+- 레인 할당: Chat에서 `/assign-lanes <스코프>` 실행
+- Subagent 점검: `/subagent-check <태스크 ID>` 실행
+- CLI 실행: `/cli-execute <태스크 ID>` 실행
+- Cloud 검증: `/cloud-validate <브랜치 또는 SHA>` + `npm run cloud:dispatch`/`npm run cloud:status`
+
 ## Process Rules
 
 - 각 태스크는 단일 목적, 단일 검증 명령을 가져야 한다.

@@ -54,3 +54,19 @@
 ## 5) 완료 규칙
 
 - 사용자 예외 지시가 없으면 구현 태스크의 완료 조건에 `커밋 + 원격 푸시`를 포함한다.
+
+## 6) Iteration 2 (M2) 레인 할당 템플릿
+
+| ID | 목표 | 담당 | 독립 검증 기준 |
+|---|---|---|---|
+| M2-S01 | SDK/인증 경로 리스크 점검 | Subagent | `/subagent-check M2-S01` 결과에 리스크/우회안 포함 |
+| M2-C01 | 사이드바 채팅 뷰 확장 | Copilot CLI | `npm run check && npm run build` |
+| M2-C02 | 세션 생성/전환/삭제 구현 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
+| M2-C03 | 스트리밍 응답 렌더 모의 구현 | Copilot CLI | `npm run verify:e2e` |
+| M2-CL01 | 클라우드 검증 실행 | Cloud Agent | `npm run cloud:dispatch` 후 `npm run cloud:status`에서 최신 run 확인 |
+
+## 7) 인터뷰 필요 게이트
+
+- SDK 우선 경로 선택(SdkAdapter vs CliBridgeAdapter)
+- 인증 플로우 선택(Device Flow vs OAuth)
+- 스트리밍 UX 레벨(토큰 단위/문단 단위)

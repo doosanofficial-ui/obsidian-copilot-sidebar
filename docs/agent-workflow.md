@@ -57,16 +57,33 @@ npm run smoke:assert
 npm run verify:e2e
 npm run verify:tracked
 npm run progress:watch
+npm run cloud:dispatch
+npm run cloud:status
 ```
 
-## 5. 진행률 추적 산출물
+## 5. VS Code 연동 설정
+
+VS Code 공식 문서의 Custom Instructions/Prompt Files 가이드를 따라 아래 경로를 활성화한다.
+
+- 항상 적용 지침: `.github/copilot-instructions.md`, `AGENTS.md`
+- 프롬프트 파일 경로: `.github/prompts/*.prompt.md`
+- 워크스페이스 설정: `.vscode/settings.json`
+
+권장 사용 순서:
+
+1. `/assign-lanes`로 레인 분배
+2. `/subagent-check`로 리스크 체크리스트 확보
+3. `/cli-execute`로 구현/게이트/커밋/푸시
+4. `/cloud-validate`와 `npm run cloud:dispatch`로 원격 검증
+
+## 6. 진행률 추적 산출물
 
 - 로컬 추적 상태: `.tmp/agent-progress.json`
 - 로컬 추적 요약: `.tmp/agent-progress.md`
 - 단계별 로그: `.tmp/agent-progress-logs/*.log`
 - Cloud 추적 아티팩트: `cloud-agent-progress`
 
-## 6. 실패 처리 규칙
+## 7. 실패 처리 규칙
 
 - 타입 실패: 코드 수정 후 `npm run check`부터 재시작
 - 빌드 실패: `npm run build` 단독 복구 후 체인 재실행

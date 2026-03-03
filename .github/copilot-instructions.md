@@ -10,6 +10,18 @@
 - Copilot CLI lane: 실제 코드 변경/로컬 게이트 실행/커밋
 - Cloud Agent lane: CI 기반 재현 검증 및 회귀 탐지
 
+## Task Allocation Protocol
+
+- 작업 시작 시 `/assign-lanes` 프롬프트로 원자 태스크를 3개 레인(Subagent/CLI/Cloud)에 분배한다.
+- Subagent는 읽기 전용 탐색 결과(리스크/체크리스트)만 산출하고 코드 수정은 하지 않는다.
+- CLI는 할당된 구현 태스크만 수행하고 필수 게이트를 통과시킨다.
+- Cloud는 `Validation` 워크플로우 실행 및 결과 검증(요약/아티팩트)으로 종료한다.
+
+## Interview Gate
+
+- 제품/정책/스코프 선택이 필요한 지점만 인터뷰 질문으로 사용자에게 확인한다.
+- 구현 세부/기술적 자동화 가능한 항목은 질문 없이 에이전트가 계속 진행한다.
+
 ## Required Verification Flow
 
 아래 순서를 통과하지 못하면 커밋하지 않는다.

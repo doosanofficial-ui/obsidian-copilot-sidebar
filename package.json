@@ -12,7 +12,9 @@
     "smoke:assert": "node scripts/smoke-assert.mjs",
     "verify:e2e": "npm run check && npm run build && npm run smoke:prepare && npm run smoke:run && npm run smoke:assert",
     "verify:tracked": "node scripts/verify-tracked.mjs",
-    "progress:watch": "node scripts/progress-watch.mjs"
+    "progress:watch": "node scripts/progress-watch.mjs",
+    "cloud:dispatch": "node scripts/cloud-dispatch.mjs",
+    "cloud:status": "node scripts/cloud-status.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

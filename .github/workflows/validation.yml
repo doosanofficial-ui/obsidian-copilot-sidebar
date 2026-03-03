@@ -20,6 +20,11 @@ jobs:
           test -f AGENTS.md
           test -f docs/atomic-task-plan.md
           test -f docs/agent-workflow.md
+          test -f .vscode/settings.json
+          test -f .github/prompts/assign-lanes.prompt.md
+          test -f .github/prompts/subagent-check.prompt.md
+          test -f .github/prompts/cli-execute.prompt.md
+          test -f .github/prompts/cloud-validate.prompt.md
 
   copilot-cli-fast-gate:
     name: copilot-cli-fast-gate
