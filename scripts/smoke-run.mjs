@@ -211,16 +211,15 @@ try {
     .map((command) => command.id)
     .sort();
   events.commandIds = commandIds;
-  assert.deepEqual(
-    commandIds,
-    [
-      "apply-pending-changes",
-      "ask-about-current-note",
-      "open-copilot-sidebar",
-      "start-new-chat-session"
-    ],
-    "command set mismatch"
-  );
+  const requiredCommands = [
+    "apply-pending-changes",
+    "ask-about-current-note",
+    "open-copilot-sidebar",
+    "start-new-chat-session"
+  ];
+  for (const commandId of requiredCommands) {
+    assert.ok(commandIds.includes(commandId), `missing required command: ${commandId}`);
+  }
 
   const viewEntry = plugin.__views[0];
   assert.equal(viewEntry.type, "copilot-sidebar-view", "view type mismatch");
@@ -236,20 +235,24 @@ try {
   const openCommand = plugin.__commands.find((command) => command.id === "open-copilot-sidebar");
   const startSessionCommand = plugin.__commands.find((command) => command.id === "start-new-chat-session");
   const applyCommand = plugin.__commands.find((command) => command.id === "apply-pending-changes");
+  const undoCommand = plugin.__commands.find((command) => command.id === "undo-last-applied-change");
 
   assert.ok(openCommand, "open command should exist");
   assert.ok(startSessionCommand, "start session command should exist");
   assert.ok(applyCommand, "apply command should exist");
+  assert.ok(undoCommand, "undo command should exist");
 
   await openCommand.callback();
   await startSessionCommand.callback();
   await applyCommand.callback();
+  await undoCommand.callback();
 
   await view.onClose();
 
   assert.equal(events.setViewStateCalls.length, 1, "setViewState should be called once");
   assert.ok(events.revealLeafCalls >= 1, "revealLeaf should be called at least once");
   assert.ok(events.notices.includes("No pending changes to apply."), "apply command should show empty-state notice");
+  assert.ok(events.notices.includes("No applied change to undo."), "undo command should show empty-state notice");
 
   await plugin.onunload();
   assert.deepEqual(events.detachedTypes, ["copilot-sidebar-view"], "detachLeavesOfType call mismatch");

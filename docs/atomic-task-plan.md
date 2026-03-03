@@ -82,3 +82,12 @@
 | G05 | 보호 설정 상태 검증 | Cloud Agent | `npm run branch:protect:status` 성공 |
 | G06 | PR 기반 리뷰 확인 | Cloud Agent | `npm run review:status`에서 PR/체크 상태 확인 |
 | G07 | 단일 협업자 solo mode 검증 | Cloud Agent | `npm run branch:protect:status`에서 `reviewPolicyMode=solo` 확인 |
+
+## 9) Iteration 4 (M3) 템플릿
+
+| ID | 목표 | 담당 | 독립 검증 기준 |
+|---|---|---|---|
+| M3-C01 | 명시적 추가 컨텍스트 노트 병합 | Copilot CLI | `npm run check && npm run build` |
+| M3-C02 | 변경 제안 diff 프리뷰 UI 추가 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
+| M3-C03 | pending discard 및 마지막 적용 undo 구현 | Copilot CLI | `npm run verify:e2e` |
+| M3-CL01 | M3 변경의 Cloud 검증 실행 | Cloud Agent | `npm run cloud:dispatch` 후 `npm run cloud:status`에서 최신 run 확인 |
