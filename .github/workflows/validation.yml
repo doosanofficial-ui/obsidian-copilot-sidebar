@@ -1,6 +1,7 @@
 name: Validation
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -60,5 +61,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Runtime E2E smoke
-        run: npm run verify:e2e
+      - name: Runtime E2E smoke (tracked)
+        run: npm run verify:tracked
+
+      - name: Publish progress summary
+        if: always()
+        run: |
+          if [ -f .tmp/agent-progress.md ]; then
+            cat .tmp/agent-progress.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "agent-progress summary file is missing" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload progress artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-agent-progress
+          if-no-files-found: warn
+          path: |
+            .tmp/agent-progress.json
+            .tmp/agent-progress.md
+            .tmp/agent-progress-logs/
+            .tmp/smoke-prepare.json
+            .tmp/smoke-run.json

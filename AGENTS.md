@@ -19,8 +19,16 @@
 5. `npm run smoke:assert`
 6. `npm run verify:e2e`
 
+## Progress Tracking
+
+- 로컬 시각 추적 실행: `npm run verify:tracked`
+- 로컬 실시간 모니터: `npm run progress:watch`
+- 로컬 산출물: `.tmp/agent-progress.json`, `.tmp/agent-progress.md`, `.tmp/agent-progress-logs/*.log`
+- Cloud 산출물: `Validation` 워크플로우의 Step Summary + `cloud-agent-progress` 아티팩트
+
 ## Process Rules
 
 - 각 태스크는 단일 목적, 단일 검증 명령을 가져야 한다.
 - 실패한 게이트부터 복구하고 전체 체인을 다시 통과한다.
 - 스펙 변경 시 `docs/requirements.md`와 `docs/atomic-task-plan.md`를 함께 갱신한다.
+- 사용자가 별도 예외를 요청하지 않으면 작업 완료 시 반드시 커밋/푸시까지 수행한다.

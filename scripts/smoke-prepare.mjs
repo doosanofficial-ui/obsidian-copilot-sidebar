@@ -16,7 +16,7 @@ if (!manifest.id || typeof manifest.id !== "string") {
 const pluginDir = path.join(vaultDir, ".obsidian", "plugins", manifest.id);
 const requiredFiles = ["main.js", "manifest.json", "styles.css", "versions.json"];
 
-await fs.rm(tmpDir, { recursive: true, force: true });
+await fs.rm(vaultDir, { recursive: true, force: true });
 await fs.mkdir(pluginDir, { recursive: true });
 
 for (const fileName of requiredFiles) {

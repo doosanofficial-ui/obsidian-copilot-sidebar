@@ -10,7 +10,9 @@
     "smoke:prepare": "node scripts/smoke-prepare.mjs",
     "smoke:run": "node scripts/smoke-run.mjs",
     "smoke:assert": "node scripts/smoke-assert.mjs",
-    "verify:e2e": "npm run check && npm run build && npm run smoke:prepare && npm run smoke:run && npm run smoke:assert"
+    "verify:e2e": "npm run check && npm run build && npm run smoke:prepare && npm run smoke:run && npm run smoke:assert",
+    "verify:tracked": "node scripts/verify-tracked.mjs",
+    "progress:watch": "node scripts/progress-watch.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

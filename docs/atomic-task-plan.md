@@ -19,11 +19,13 @@
 | T11 | 스모크 결과 단정 스크립트 작성 | Copilot CLI | `npm run smoke:assert` 성공 |
 | T12 | 패키지 스크립트 연결 | Copilot CLI | `package.json`에 `smoke:*`, `verify:e2e` 존재 |
 | T13 | CI 워크플로우 추가 | Cloud Agent | `.github/workflows/validation.yml` 존재 |
-| T14 | Cloud 런타임 게이트 실행 | Cloud Agent | CI에서 `verify:e2e` 성공 |
+| T14 | Cloud 런타임 게이트 실행 | Cloud Agent | CI에서 `verify:tracked` 성공 + 진행률 아티팩트 업로드 |
 | T15 | 병렬 결과 통합/충돌 확인 | Copilot CLI | `git grep -n '<<<<<<<\|=======\|>>>>>>>'` 무출력 |
 | T16 | 로컬 최종 게이트 재실행 | Copilot CLI | `npm run verify:e2e` 성공 |
 | T17 | 변경 범위 검증 | Copilot CLI | `git diff --name-only`가 합의 범위 내 |
 | T18 | 커밋/푸시 | Copilot CLI | 원격 `main` 반영 |
+| T19 | 로컬 진행률 추적 러너 추가 | Copilot CLI | `npm run verify:tracked`가 `.tmp/agent-progress.json` 생성 |
+| T20 | 로컬 실시간 모니터 추가 | Copilot CLI | `npm run progress:watch` 실행 시 상태 갱신 표시 |
 
 ## 2) 의존성 그래프
 
@@ -32,6 +34,7 @@
 - `T04 -> T09 -> T10 -> T11 -> T12`
 - `T04 -> T13 -> T14`
 - `T08, T12, T14 -> T15 -> T16 -> T17 -> T18`
+- `T12 -> T19 -> T20`
 
 ## 3) 병렬 실행 레인
 
@@ -45,4 +48,9 @@
 2. `npm run build`
 3. `npm run smoke:prepare && npm run smoke:run && npm run smoke:assert`
 4. `npm run verify:e2e`
-5. 충돌 마커 없음 + 변경 범위 검증 완료
+5. `npm run verify:tracked` 결과와 `.tmp/agent-progress.md` 확인
+6. 충돌 마커 없음 + 변경 범위 검증 완료
+
+## 5) 완료 규칙
+
+- 사용자 예외 지시가 없으면 구현 태스크의 완료 조건에 `커밋 + 원격 푸시`를 포함한다.

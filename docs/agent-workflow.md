@@ -13,13 +13,13 @@
 ### GitHub Copilot CLI (로컬 구현 단위)
 
 - 실제 코드 수정, 스크립트 작성, 로컬 검증 실행
-- 산출물: 변경 파일 + 실행 로그 + 커밋
+- 산출물: 변경 파일 + 실행 로그 + 진행률 리포트 + 커밋
 - 책임: 충돌 해결, 게이트 통과 증빙
 
 ### Cloud Agent (원격 재현 단위)
 
 - 깨끗한 환경에서 재현 검증
-- 산출물: CI 상태(필수 게이트), 실패 로그
+- 산출물: CI 상태(필수 게이트), Step Summary, 아티팩트 로그
 - 책임: 플랫폼 차이로 인한 회귀 탐지
 
 ## 2. 입출력 계약
@@ -32,7 +32,7 @@
 ### 출력 규약
 
 - Subagent: "파일/심볼/리스크" 중심 요약
-- Copilot CLI: "수정 파일 + 실행 명령 + 결과"
+- Copilot CLI: "수정 파일 + 실행 명령 + 결과 + 커밋 SHA + 푸시 결과"
 - Cloud Agent: "워크플로우 잡명 + 실패 지점 + 재현 명령"
 
 ## 3. 실행 순서
@@ -42,6 +42,9 @@
 3. Copilot CLI가 스크립트/워크플로우 구현
 4. Cloud Agent가 CI로 독립 재검증
 5. Copilot CLI가 최종 E2E 게이트 통과 후 커밋
+6. Copilot CLI가 원격 브랜치로 푸시하고 동기화 상태를 확인
+
+기본 원칙: 사용자가 명시적으로 제외를 지시하지 않으면 구현 작업은 커밋/푸시 완료까지 포함한다.
 
 ## 4. 표준 명령
 
@@ -52,9 +55,18 @@ npm run smoke:prepare
 npm run smoke:run
 npm run smoke:assert
 npm run verify:e2e
+npm run verify:tracked
+npm run progress:watch
 ```
 
-## 5. 실패 처리 규칙
+## 5. 진행률 추적 산출물
+
+- 로컬 추적 상태: `.tmp/agent-progress.json`
+- 로컬 추적 요약: `.tmp/agent-progress.md`
+- 단계별 로그: `.tmp/agent-progress-logs/*.log`
+- Cloud 추적 아티팩트: `cloud-agent-progress`
+
+## 6. 실패 처리 규칙
 
 - 타입 실패: 코드 수정 후 `npm run check`부터 재시작
 - 빌드 실패: `npm run build` 단독 복구 후 체인 재실행

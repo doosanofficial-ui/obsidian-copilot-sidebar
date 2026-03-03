@@ -21,6 +21,12 @@
 5. `npm run smoke:assert`
 6. `npm run verify:e2e`
 
+## Completion Rule
+
+- 구현/수정 작업의 기본 완료 조건은 "검증 게이트 통과 + 커밋 + 원격 푸시"다.
+- 사용자가 명시적으로 커밋/푸시 제외를 요청한 경우에만 예외를 둔다.
+- 푸시 대상 브랜치와 커밋 범위는 작업 시작 시 합의한 스코프를 유지한다.
+
 ## Documentation Sync
 
 - 기능 스코프 변경 시 `docs/requirements.md` 업데이트
