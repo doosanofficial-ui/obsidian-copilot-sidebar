@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "smoke:prepare": "node scripts/smoke-prepare.mjs",
+    "smoke:run": "node scripts/smoke-run.mjs",
+    "smoke:assert": "node scripts/smoke-assert.mjs",
+    "verify:e2e": "npm run check && npm run build && npm run smoke:prepare && npm run smoke:run && npm run smoke:assert"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

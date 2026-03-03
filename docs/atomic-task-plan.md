@@ -1,0 +1,48 @@
+# Atomic Task Plan (Iteration 1)
+
+목표: 독립적으로 검증 가능한 최소 단위 태스크를 기준으로, 병렬 실행 후 단일 커밋 게이트를 통과한다.
+
+## 1) 원자 태스크 목록
+
+| ID | 목표 | 담당 | 독립 검증 기준 |
+|---|---|---|---|
+| T01 | 작업 브랜치 생성 | Copilot CLI | `git checkout -b iter/atomic-e2e-v1` |
+| T02 | 의존성 설치 | Copilot CLI | `npm ci` |
+| T03 | 베이스라인 타입/빌드 확인 | Copilot CLI | `npm run check && npm run build` |
+| T04 | 원자 태스크/역할 계약 문서화 | Copilot CLI | `docs/agent-workflow.md` 생성 |
+| T05 | 사이드바 뷰 타입 상수 검증 | Subagent | `src/main.ts`에 `copilot-sidebar-view` 존재 |
+| T06 | 명령 등록 경로 검증 | Subagent | `src/main.ts`에 `open-copilot-sidebar` 존재 |
+| T07 | 뷰 활성화 경로 검증 | Subagent | `activateView`에서 `setViewState` 호출 확인 |
+| T08 | 언로드 정리 경로 검증 | Subagent | `onunload`에서 `detachLeavesOfType` 호출 |
+| T09 | 스모크 준비 스크립트 작성 | Copilot CLI | `npm run smoke:prepare` 성공 |
+| T10 | 런타임 스모크 실행 스크립트 작성 | Copilot CLI | `npm run smoke:run` 성공 |
+| T11 | 스모크 결과 단정 스크립트 작성 | Copilot CLI | `npm run smoke:assert` 성공 |
+| T12 | 패키지 스크립트 연결 | Copilot CLI | `package.json`에 `smoke:*`, `verify:e2e` 존재 |
+| T13 | CI 워크플로우 추가 | Cloud Agent | `.github/workflows/validation.yml` 존재 |
+| T14 | Cloud 런타임 게이트 실행 | Cloud Agent | CI에서 `verify:e2e` 성공 |
+| T15 | 병렬 결과 통합/충돌 확인 | Copilot CLI | `git grep -n '<<<<<<<\|=======\|>>>>>>>'` 무출력 |
+| T16 | 로컬 최종 게이트 재실행 | Copilot CLI | `npm run verify:e2e` 성공 |
+| T17 | 변경 범위 검증 | Copilot CLI | `git diff --name-only`가 합의 범위 내 |
+| T18 | 커밋/푸시 | Copilot CLI | 원격 `main` 반영 |
+
+## 2) 의존성 그래프
+
+- `T01 -> T02 -> T03 -> T04`
+- `T04 -> T05 -> T06 -> T07 -> T08`
+- `T04 -> T09 -> T10 -> T11 -> T12`
+- `T04 -> T13 -> T14`
+- `T08, T12, T14 -> T15 -> T16 -> T17 -> T18`
+
+## 3) 병렬 실행 레인
+
+- Lane A (Subagent): `T05-T08`
+- Lane B (Copilot CLI): `T09-T12`
+- Lane C (Cloud Agent): `T13-T14`
+
+## 4) 커밋 전 최소 게이트
+
+1. `npm run check`
+2. `npm run build`
+3. `npm run smoke:prepare && npm run smoke:run && npm run smoke:assert`
+4. `npm run verify:e2e`
+5. 충돌 마커 없음 + 변경 범위 검증 완료
