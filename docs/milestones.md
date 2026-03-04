@@ -39,3 +39,10 @@
 - CHANGELOG.md 작성
 - 문서/README 완료 상태 반영
 - GitHub 릴리스 태그 v1.0.0
+
+## M7: Live Copilot Bridge ✅ (완료)
+
+- 목업 응답 경로 제거, `gh copilot -p` 기반 실응답 경로 적용
+- `CopilotEngineAdapter` + `GhCopilotCliAdapter` 구현
+- 최신 `gh copilot` 브리지 모드(`gh copilot -- --version`) 인증 probe 호환
+- 진단 요약에 마지막 엔진 식별자(`lastEngineId`) 포함

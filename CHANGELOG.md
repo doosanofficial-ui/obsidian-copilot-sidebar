@@ -2,6 +2,18 @@
 
 All notable changes to **Obsidian Copilot Sidebar** are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Live Copilot bridge via `gh copilot -p` with adapterized runtime path (`CopilotEngineAdapter` + `GhCopilotCliAdapter`).
+- `gh copilot` CLI bridge-mode auth probe compatibility (`gh copilot -- --version`).
+- Diagnostics now track and expose `lastEngineId` for live-vs-error path verification.
+
+### Changed
+
+- Removed default mock response path from normal chat flow; prompts now attempt live Copilot execution first.
+
 ## [1.0.0] — 2026-03-04
 
 ### 🎉 First Stable Release

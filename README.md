@@ -9,20 +9,22 @@ GitHub Copilot CLI 수준의 작업 경험을 Obsidian 사이드바에서 제공
 
 - Obsidian 내부에서 사이드바 채팅 UX 제공
 - GitHub Copilot 계정 연동 기반 인증/사용
+- `gh copilot -p` 기반 라이브 응답 브리지
 - Copilot CLI 핵심 흐름(질문, 컨텍스트 주입, 파일 변경 제안/적용)과 기능 동등성 확보
 
 ## 현재 상태 — v1.0.0 (안정화 완료)
 
-모든 계획 마일스톤(M1–M5)이 완료되었습니다.
+모든 계획 마일스톤(M1–M7)이 완료되었습니다.
 
 | 마일스톤 | 내용 | 상태 |
 |---|---|---|
 | M1 | `gh auth status`/`gh copilot status` 기반 인증 probe + 수동 재검증 | ✅ |
-| M2 | 사이드바 채팅 뷰, 세션 생성/전환/삭제, 모의 스트리밍 응답 | ✅ |
+| M2 | 사이드바 채팅 뷰, 세션 생성/전환/삭제 | ✅ |
 | M3 | 명시적 추가 컨텍스트 병합, diff 프리뷰, discard/undo | ✅ |
 | M4 | 설정 패널(모델/정책/디버그), 실패 프롬프트 재시도 | ✅ |
 | M5 | 스트리밍 배치 최적화, 진단 메트릭, 베타 피드백 노트 생성 | ✅ |
 | M6 | v1.0.0 릴리스, CHANGELOG, 문서 최종화 | ✅ |
+| M7 | `gh copilot -p` 라이브 브리지 응답 + 최신 `gh copilot` probe 호환 | ✅ |
 
 **명령 팔레트 연동 (10개):**
 `open-copilot-sidebar` · `ask-about-current-note` · `apply-pending-changes` · `start-new-chat-session` · `undo-last-applied-change` · `refresh-auth-status` · `open-sidebar-settings-panel` · `retry-last-failed-prompt` · `copy-diagnostics-summary` · `capture-beta-feedback-note`

@@ -3,7 +3,8 @@
 ## 1. 구성요소
 
 - `SidebarView`: 채팅 UI, 세션 목록, 상태 표시
-- `CopilotEngineAdapter`: SDK 또는 CLI 브리지 추상화
+- `CopilotEngineAdapter`: 엔진 교체 가능한 추상화 계층
+- `GhCopilotCliAdapter`: `gh copilot -p` 기반 실응답 브리지 (현재 기본)
 - `ContextProvider`: 현재 노트/선택 텍스트/참조 노트 수집
 - `ChangeManager`: 제안 변경 diff 생성, 적용/되돌리기
 - `SettingsStore`: 사용자 설정 및 세션 메타데이터 저장
@@ -13,14 +14,14 @@
 
 동일한 인터페이스를 정의하고 구현체를 교체 가능하게 유지한다.
 
-- `SdkAdapter` (1순위): GitHub Copilot SDK 직접 연동
-- `CliBridgeAdapter` (2순위): SDK 제약 시 로컬 CLI 브리지 활용
+- `GhCopilotCliAdapter` (현재): GitHub CLI가 다운로드/실행하는 Copilot CLI를 브리지로 사용
+- `SdkAdapter` (후속): SDK 정책/배포 모델이 확정되면 동일 인터페이스로 교체
 
 ## 3. 요청 처리 흐름
 
 1. 사용자 입력 + 컨텍스트 선택
 2. `ContextProvider`가 프롬프트 컨텍스트 구성
-3. `CopilotEngineAdapter`로 요청 전송
+3. `CopilotEngineAdapter` 구현체(`GhCopilotCliAdapter`)로 `gh copilot -p` 요청 전송
 4. 스트리밍 응답을 `SidebarView`에 반영
 5. 변경 제안 존재 시 `ChangeManager`가 diff 프리뷰 생성
 6. 사용자 승인 후 파일 반영
