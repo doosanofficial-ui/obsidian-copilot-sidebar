@@ -53,6 +53,8 @@ function defaultSettings() {
     additionalContextPaths: [],
     lastAppliedChange: null,
     authState: "logged-in",
+    authDetail: "Auth not checked yet.",
+    authCheckedAt: Date.now(),
     model: "gpt-5.3-codex",
     contextPolicy: "selection-first",
     debugLogging: false
@@ -119,6 +121,15 @@ function buildPreviewDiff(before, after) {
   }
   return out.join("\n");
 }
+function compactOutput(stdout, stderr) {
+  const joined = `${stdout}
+${stderr}`.replace(/\s+/g, " ").trim();
+  return joined.length > 0 ? joined : "(no output)";
+}
+function containsAny(source, patterns) {
+  const lowered = source.toLowerCase();
+  return patterns.some((pattern) => lowered.includes(pattern));
+}
 function normalizeSettings(raw) {
   const fallback = defaultSettings();
   if (!raw || typeof raw !== "object") {
@@ -160,6 +171,8 @@ function normalizeSettings(raw) {
     additionalContextPaths,
     lastAppliedChange,
     authState: isAuthState(source.authState) ? source.authState : fallback.authState,
+    authDetail: typeof source.authDetail === "string" && source.authDetail.trim().length > 0 ? source.authDetail : fallback.authDetail,
+    authCheckedAt: typeof source.authCheckedAt === "number" ? source.authCheckedAt : fallback.authCheckedAt,
     model: typeof source.model === "string" && source.model.trim().length > 0 ? source.model : fallback.model,
     contextPolicy: isContextPolicy(source.contextPolicy) ? source.contextPolicy : fallback.contextPolicy,
     debugLogging: Boolean(source.debugLogging)
@@ -183,7 +196,9 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     const root = container.createDiv({ cls: "copilot-sidebar-root" });
     const header = root.createDiv({ cls: "copilot-sidebar-header" });
     const title = header.createDiv({ text: "Copilot Sidebar", cls: "copilot-sidebar-title" });
-    const authBadge = header.createDiv({ cls: "copilot-auth-badge" });
+    const authMeta = header.createDiv({ cls: "copilot-auth-meta" });
+    const authBadge = authMeta.createDiv({ cls: "copilot-auth-badge" });
+    const authDetail = authMeta.createDiv({ cls: "copilot-auth-detail" });
     const controlRow = root.createDiv({ cls: "copilot-sidebar-controls" });
     const newSessionButton = controlRow.createEl("button", {
       text: "New Session",
@@ -201,8 +216,8 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
       text: "Add Active Context",
       cls: "copilot-button"
     });
-    const authCycleButton = controlRow.createEl("button", {
-      text: "Cycle Auth",
+    const refreshAuthButton = controlRow.createEl("button", {
+      text: "Refresh Auth",
       cls: "copilot-button"
     });
     const layout = root.createDiv({ cls: "copilot-sidebar-layout" });
@@ -237,8 +252,8 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     addContextButton.addEventListener("click", () => {
       void this.plugin.addActiveNoteToContext();
     });
-    authCycleButton.addEventListener("click", () => {
-      void this.plugin.cycleAuthState();
+    refreshAuthButton.addEventListener("click", () => {
+      void this.plugin.refreshAuthStatus("manual");
     });
     composerButton.addEventListener("click", () => {
       void this.submitComposer();
@@ -252,6 +267,7 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     this.elements = {
       title,
       authBadge,
+      authMeta: authDetail,
       sessionList,
       contextList,
       pendingList,
@@ -275,6 +291,9 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     this.elements.title.setText(activeSession ? activeSession.title : "Copilot Sidebar");
     this.elements.authBadge.setText(`Auth: ${snapshot.authState}`);
     this.elements.authBadge.className = `copilot-auth-badge auth-${snapshot.authState}`;
+    const checkedAt = new Date(snapshot.authCheckedAt).toLocaleTimeString();
+    const compactDetail = snapshot.authDetail.length > 180 ? `${snapshot.authDetail.slice(0, 177)}...` : snapshot.authDetail;
+    this.elements.authMeta.setText(`${compactDetail} | checked ${checkedAt}`);
     this.renderSessions(snapshot);
     this.renderContextNotes(snapshot);
     this.renderPendingChanges(snapshot);
@@ -282,7 +301,7 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     this.renderPreview(snapshot);
     this.elements.composerButton.disabled = snapshot.isStreaming;
     this.elements.composerInput.disabled = snapshot.isStreaming;
-    this.elements.composerInput.placeholder = snapshot.authState === "logged-in" ? "Ask Copilot about this vault..." : "Auth state is not logged-in. Use Cycle Auth (mock) to simulate recovery.";
+    this.elements.composerInput.placeholder = snapshot.authState === "logged-in" ? "Ask Copilot about this vault..." : "Auth state is not logged-in. Use Refresh Auth to re-check login and entitlement.";
   }
   renderSessions(snapshot) {
     if (!this.elements) {
@@ -496,6 +515,14 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
         await this.undoLastAppliedChange();
       }
     });
+    this.addCommand({
+      id: "refresh-auth-status",
+      name: "Refresh auth status",
+      callback: async () => {
+        await this.refreshAuthStatus("manual");
+      }
+    });
+    void this.refreshAuthStatus("startup");
   }
   async onunload() {
     for (const timer of this.activeStreamTimers) {
@@ -523,6 +550,8 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       additionalContextPaths: [...this.settings.additionalContextPaths],
       lastAppliedChange: this.settings.lastAppliedChange ? { ...this.settings.lastAppliedChange } : null,
       authState: this.settings.authState,
+      authDetail: this.settings.authDetail,
+      authCheckedAt: this.settings.authCheckedAt,
       model: this.settings.model,
       isStreaming: this.streaming
     };
@@ -559,7 +588,124 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     const currentIndex = AUTH_ORDER.indexOf(this.settings.authState);
     const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % AUTH_ORDER.length : 0;
     this.settings.authState = AUTH_ORDER[nextIndex];
+    this.settings.authDetail = "Manual auth state override.";
+    this.settings.authCheckedAt = Date.now();
     await this.persistAndRender();
+  }
+  async refreshAuthStatus(trigger = "manual") {
+    const probe = this.probeAuthStatusFromGh();
+    this.settings.authState = probe.state;
+    this.settings.authDetail = probe.detail;
+    this.settings.authCheckedAt = probe.checkedAt;
+    await this.persistAndRender();
+    if (trigger === "manual") {
+      new import_obsidian.Notice(`Auth check: ${probe.state}`);
+    }
+  }
+  probeAuthStatusFromGh() {
+    const checkedAt = Date.now();
+    const ghVersion = this.runLocalCommand("gh", ["--version"], 2500);
+    if (ghVersion.status !== 0) {
+      return {
+        state: "offline",
+        detail: "gh CLI not found. Install/authenticate GitHub CLI.",
+        checkedAt
+      };
+    }
+    const authStatus = this.runLocalCommand("gh", ["auth", "status", "-h", "github.com"], 6e3);
+    const authOutput = compactOutput(authStatus.stdout, authStatus.stderr);
+    if (authStatus.status !== 0) {
+      if (containsAny(authOutput, ["expired", "token", "not logged", "authentication"])) {
+        return {
+          state: "token-expired",
+          detail: `GitHub auth issue: ${authOutput}`,
+          checkedAt
+        };
+      }
+      return {
+        state: "offline",
+        detail: `Unable to reach GitHub auth status: ${authOutput}`,
+        checkedAt
+      };
+    }
+    const copilotStatus = this.runLocalCommand("gh", ["copilot", "status"], 6e3);
+    const copilotOutput = compactOutput(copilotStatus.stdout, copilotStatus.stderr);
+    if (copilotStatus.status === 0) {
+      return {
+        state: "logged-in",
+        detail: `GitHub login and Copilot status confirmed. ${copilotOutput}`,
+        checkedAt
+      };
+    }
+    if (containsAny(copilotOutput, ["not entitled", "not enabled", "no entitlement", "not subscribed"])) {
+      return {
+        state: "no-entitlement",
+        detail: `GitHub login ok but Copilot entitlement missing. ${copilotOutput}`,
+        checkedAt
+      };
+    }
+    if (containsAny(copilotOutput, ["token", "authentication", "not logged", "login"])) {
+      return {
+        state: "token-expired",
+        detail: `Copilot auth needs refresh. ${copilotOutput}`,
+        checkedAt
+      };
+    }
+    if (containsAny(copilotOutput, ["unknown command", "usage:"])) {
+      return {
+        state: "logged-in",
+        detail: "GitHub login detected. Copilot status command unavailable in this gh build.",
+        checkedAt
+      };
+    }
+    return {
+      state: "logged-in",
+      detail: `GitHub login detected. Copilot status inconclusive: ${copilotOutput}`,
+      checkedAt
+    };
+  }
+  runLocalCommand(command, args, timeoutMs) {
+    const dynamicRequire = this.getDynamicRequire();
+    if (!dynamicRequire) {
+      return {
+        status: -1,
+        stdout: "",
+        stderr: "dynamic require is unavailable in this runtime",
+        error: "require-unavailable"
+      };
+    }
+    try {
+      const childProcess = dynamicRequire("node:child_process");
+      const result = childProcess.spawnSync(command, args, {
+        encoding: "utf8",
+        timeout: timeoutMs
+      });
+      const error = result.error instanceof Error ? result.error.message : null;
+      return {
+        status: result.status ?? -1,
+        stdout: typeof result.stdout === "string" ? result.stdout : "",
+        stderr: typeof result.stderr === "string" ? result.stderr : "",
+        error
+      };
+    } catch (error) {
+      return {
+        status: -1,
+        stdout: "",
+        stderr: "",
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+  getDynamicRequire() {
+    const fromGlobal = globalThis.require;
+    if (typeof fromGlobal === "function") {
+      return fromGlobal;
+    }
+    const fromWindow = globalThis.window?.require;
+    if (typeof fromWindow === "function") {
+      return fromWindow;
+    }
+    return null;
   }
   async addActiveNoteToContext() {
     const activeFile = this.app.workspace.getActiveFile();

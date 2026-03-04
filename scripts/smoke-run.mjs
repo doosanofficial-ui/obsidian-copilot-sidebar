@@ -215,7 +215,9 @@ try {
     "apply-pending-changes",
     "ask-about-current-note",
     "open-copilot-sidebar",
-    "start-new-chat-session"
+    "refresh-auth-status",
+    "start-new-chat-session",
+    "undo-last-applied-change"
   ];
   for (const commandId of requiredCommands) {
     assert.ok(commandIds.includes(commandId), `missing required command: ${commandId}`);
@@ -235,16 +237,19 @@ try {
   const openCommand = plugin.__commands.find((command) => command.id === "open-copilot-sidebar");
   const startSessionCommand = plugin.__commands.find((command) => command.id === "start-new-chat-session");
   const applyCommand = plugin.__commands.find((command) => command.id === "apply-pending-changes");
+  const refreshAuthCommand = plugin.__commands.find((command) => command.id === "refresh-auth-status");
   const undoCommand = plugin.__commands.find((command) => command.id === "undo-last-applied-change");
 
   assert.ok(openCommand, "open command should exist");
   assert.ok(startSessionCommand, "start session command should exist");
   assert.ok(applyCommand, "apply command should exist");
+  assert.ok(refreshAuthCommand, "refresh auth command should exist");
   assert.ok(undoCommand, "undo command should exist");
 
   await openCommand.callback();
   await startSessionCommand.callback();
   await applyCommand.callback();
+  await refreshAuthCommand.callback();
   await undoCommand.callback();
 
   await view.onClose();
