@@ -127,3 +127,14 @@
 | M5B-C02 | 피드백 노트에 진단/최근 대화 자동 첨부 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
 | M5B-C03 | 마지막 피드백 노트 경로 표시 및 오류 복구 반영 | Copilot CLI | `npm run verify:e2e` |
 | M5B-CL01 | M5B 변경의 Cloud 검증 실행 | Cloud Agent | `npm run cloud:dispatch` 후 `npm run cloud:status`에서 최신 run 확인 |
+
+## 14) Iteration 9 (M6 Production Release) ✅
+
+| ID | 목표 | 담당 | 독립 검증 기준 |
+|---|---|---|---|
+| M6-C01 | 버전 1.0.0 확정 (`manifest.json`, `package.json`, `versions.json`) | Copilot CLI | `grep '"1.0.0"' manifest.json` |
+| M6-C02 | CHANGELOG.md 작성 (M1~M5 전체 히스토리) | Copilot CLI | `test -f CHANGELOG.md` |
+| M6-C03 | `docs/milestones.md` 완료 상태 반영 | Copilot CLI | 모든 마일스톤 ✅ 마크 |
+| M6-C04 | README v1.0.0 반영 및 CI 배지 추가 | Copilot CLI | `npm run check && npm run build` |
+| M6-C05 | 최종 검증 게이트 통과 | Copilot CLI | `npm run verify:e2e` |
+| M6-CL01 | GitHub 릴리스 태그 v1.0.0 및 Cloud 검증 | Cloud Agent | `npm run cloud:dispatch` 후 최신 run success 확인 |
