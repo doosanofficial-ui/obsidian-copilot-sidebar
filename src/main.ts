@@ -10,6 +10,11 @@ const STREAM_RENDER_INTERVAL_MS = 90;
 const STREAM_RENDER_BATCH_TOKENS = 6;
 const PREVIEW_MAX_LINES = 120;
 const BETA_FEEDBACK_FOLDER = "Copilot Sidebar Feedback";
+const COPILOT_PROMPT_TIMEOUT_MS = 120000;
+const COPILOT_CONTEXT_NOTE_CHARS = 6000;
+const COPILOT_CONTEXT_SELECTION_CHARS = 1200;
+const COPILOT_CONTEXT_ADDITIONAL_NOTE_CHARS = 1000;
+const COPILOT_CONTEXT_ADDITIONAL_TOTAL_CHARS = 4000;
 
 type AuthState = "logged-in" | "no-entitlement" | "token-expired" | "offline";
 type ContextPolicy = "selection-first" | "note-only";
@@ -76,6 +81,7 @@ interface ChatDiagnostics {
   lastResponseDurationMs: number;
   lastResponseTokenCount: number;
   lastStreamRenderCount: number;
+  lastEngineId: string;
   lastErrorCategory: ErrorCategory;
   lastErrorMessage: string;
   updatedAt: number;
@@ -105,6 +111,31 @@ interface PromptContext {
   noteContent: string;
   selection: string;
   additionalNotes: AdditionalContextNote[];
+}
+
+interface CopilotPromptRequest {
+  prompt: string;
+  context: PromptContext;
+  model: string;
+  contextPolicy: ContextPolicy;
+  changeApplyPolicy: ChangeApplyPolicy;
+}
+
+interface CopilotResponse {
+  engineId: string;
+  content: string;
+  rawOutput: string;
+}
+
+interface CopilotEngineAdapter {
+  readonly id: string;
+  sendPrompt(request: CopilotPromptRequest): Promise<CopilotResponse>;
+}
+
+interface LiveResponse {
+  response: string;
+  live: boolean;
+  engineId: string;
 }
 
 interface SidebarSnapshot {
@@ -187,6 +218,7 @@ function defaultDiagnostics(): ChatDiagnostics {
     lastResponseDurationMs: 0,
     lastResponseTokenCount: 0,
     lastStreamRenderCount: 0,
+    lastEngineId: "not-yet-run",
     lastErrorCategory: "none",
     lastErrorMessage: "",
     updatedAt: Date.now()
@@ -332,6 +364,9 @@ function normalizeDiagnostics(raw: unknown): ChatDiagnostics {
     lastStreamRenderCount: typeof source.lastStreamRenderCount === "number"
       ? source.lastStreamRenderCount
       : fallback.lastStreamRenderCount,
+    lastEngineId: typeof source.lastEngineId === "string" && source.lastEngineId.trim().length > 0
+      ? source.lastEngineId
+      : fallback.lastEngineId,
     lastErrorCategory: isErrorCategory(source.lastErrorCategory)
       ? source.lastErrorCategory
       : fallback.lastErrorCategory,
@@ -435,6 +470,162 @@ function normalizeSettings(raw: unknown): CopilotSidebarSettings {
     diagnostics,
     debugLogging: Boolean(source.debugLogging)
   };
+}
+
+class CopilotEngineFailure extends Error {
+  constructor(
+    message: string,
+    readonly authState: AuthState,
+    readonly category: ErrorCategory
+  ) {
+    super(message);
+    this.name = "CopilotEngineFailure";
+  }
+}
+
+class GhCopilotCliAdapter implements CopilotEngineAdapter {
+  readonly id = "gh-copilot-cli";
+
+  constructor(
+    private readonly runCommand: (command: string, args: string[], timeoutMs: number) => CommandExecResult
+  ) {}
+
+  async sendPrompt(request: CopilotPromptRequest): Promise<CopilotResponse> {
+    const payload = this.buildPromptPayload(request);
+    let commandResult = this.runCommand(
+      "gh",
+      ["copilot", "-p", payload, "--allow-tool", "none"],
+      COPILOT_PROMPT_TIMEOUT_MS
+    );
+
+    if (commandResult.status !== 0 && this.shouldRetryWithoutAllowTool(commandResult)) {
+      commandResult = this.runCommand(
+        "gh",
+        ["copilot", "-p", payload],
+        COPILOT_PROMPT_TIMEOUT_MS
+      );
+    }
+
+    if (commandResult.status !== 0) {
+      throw this.classifyFailure(commandResult);
+    }
+
+    const output = sanitizeCopilotOutput(commandResult.stdout);
+    if (!output) {
+      throw new CopilotEngineFailure(
+        "Copilot CLI returned an empty response.",
+        "logged-in",
+        "validation"
+      );
+    }
+
+    return {
+      engineId: this.id,
+      content: output,
+      rawOutput: commandResult.stdout
+    };
+  }
+
+  private buildPromptPayload(request: CopilotPromptRequest): string {
+    const selectionExcerpt = request.context.selection.trim().length > 0
+      ? request.context.selection.slice(0, COPILOT_CONTEXT_SELECTION_CHARS)
+      : "<none>";
+
+    const noteExcerpt = request.context.noteContent.trim().length > 0
+      ? request.context.noteContent.slice(0, COPILOT_CONTEXT_NOTE_CHARS)
+      : "<none>";
+
+    let remainingAdditional = COPILOT_CONTEXT_ADDITIONAL_TOTAL_CHARS;
+    const additionalBlocks: string[] = [];
+
+    for (const note of request.context.additionalNotes) {
+      if (remainingAdditional <= 0) {
+        break;
+      }
+
+      const excerpt = note.content.slice(0, Math.min(COPILOT_CONTEXT_ADDITIONAL_NOTE_CHARS, remainingAdditional));
+      remainingAdditional -= excerpt.length;
+      additionalBlocks.push(`### ${note.path}\n${excerpt || "<empty>"}`);
+    }
+
+    const additionalContext = additionalBlocks.length > 0
+      ? additionalBlocks.join("\n\n")
+      : "<none>";
+
+    return [
+      "You are helping inside an Obsidian plugin session via GitHub Copilot CLI.",
+      "Return only Markdown content for the assistant answer.",
+      `Model preference: ${request.model}`,
+      `Context policy: ${request.contextPolicy}`,
+      `Write policy: ${request.changeApplyPolicy}`,
+      "",
+      "## User Prompt",
+      request.prompt,
+      "",
+      "## Active Note",
+      `Path: ${request.context.notePath ?? "<none>"}`,
+      noteExcerpt,
+      "",
+      "## Current Selection",
+      selectionExcerpt,
+      "",
+      "## Additional Context Notes",
+      additionalContext
+    ].join("\n");
+  }
+
+  private shouldRetryWithoutAllowTool(commandResult: CommandExecResult): boolean {
+    const output = compactOutput(commandResult.stdout, `${commandResult.stderr}\n${commandResult.error ?? ""}`);
+    return containsAny(output, [
+      "unknown option '--allow-tool'",
+      "unknown flag: --allow-tool",
+      "did you mean --allow-tools"
+    ]);
+  }
+
+  private classifyFailure(commandResult: CommandExecResult): CopilotEngineFailure {
+    const output = compactOutput(commandResult.stdout, `${commandResult.stderr}\n${commandResult.error ?? ""}`);
+    const detail = output.length > 500 ? `${output.slice(0, 497)}...` : output;
+    const message = `Copilot CLI request failed: ${detail}`;
+
+    if (containsAny(output, ["not entitled", "no entitlement", "not enabled", "subscription", "plan"])) {
+      return new CopilotEngineFailure(message, "no-entitlement", "entitlement");
+    }
+
+    if (containsAny(output, ["not logged", "gh auth login", "authentication", "token", "reauth"])) {
+      return new CopilotEngineFailure(message, "token-expired", "auth");
+    }
+
+    if (containsAny(output, ["timed out", "timeout", "network", "connection", "offline", "enotfound", "econn"])) {
+      return new CopilotEngineFailure(message, "offline", "network");
+    }
+
+    if (containsAny(output, ["enoent", "not found", "require-unavailable"])) {
+      return new CopilotEngineFailure(message, "offline", "network");
+    }
+
+    return new CopilotEngineFailure(message, "offline", "unknown");
+  }
+}
+
+function sanitizeCopilotOutput(rawOutput: string): string {
+  const withoutAnsi = rawOutput
+    .replace(/\u001b\[[0-9;]*m/g, "")
+    .replace(/\r/g, "");
+  const lines = withoutAnsi.split("\n");
+  const usageStartIndex = lines.findIndex((line) => line.trim().startsWith("Total usage est:"));
+  const contentLines = usageStartIndex >= 0
+    ? lines.slice(0, usageStartIndex)
+    : lines;
+
+  while (contentLines.length > 0 && contentLines[0].trim().length === 0) {
+    contentLines.shift();
+  }
+  while (contentLines.length > 0 && contentLines[contentLines.length - 1].trim().length === 0) {
+    contentLines.pop();
+  }
+
+  return contentLines.join("\n").trim();
 }
 
 class CopilotSidebarView extends ItemView {
@@ -740,6 +931,7 @@ class CopilotSidebarView extends ItemView {
 
     const diagnostics = snapshot.diagnostics;
     const diagnosticsLines = [
+      `Engine: ${diagnostics.lastEngineId}`,
       `First token: ${formatDurationMs(diagnostics.lastFirstTokenLatencyMs)}`,
       `Response duration: ${formatDurationMs(diagnostics.lastResponseDurationMs)}`,
       `Response tokens: ${diagnostics.lastResponseTokenCount}`,
@@ -928,9 +1120,11 @@ export default class CopilotSidebarPlugin extends Plugin {
   private streaming = false;
   private activeStreamTimers = new Set<ReturnType<typeof setTimeout>>();
   private selectedPendingChangeId: string | null = null;
+  private copilotAdapter: CopilotEngineAdapter | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    this.copilotAdapter = new GhCopilotCliAdapter((command, args, timeoutMs) => this.runLocalCommand(command, args, timeoutMs));
 
     this.registerView(VIEW_TYPE_COPILOT_SIDEBAR, (leaf) => new CopilotSidebarView(leaf, this));
 
@@ -1251,6 +1445,47 @@ export default class CopilotSidebarPlugin extends Plugin {
       };
     }
 
+    const copilotHelp = this.runLocalCommand("gh", ["copilot", "--help"], 6000);
+    const copilotHelpOutput = compactOutput(copilotHelp.stdout, copilotHelp.stderr);
+    if (copilotHelp.status !== 0) {
+      return {
+        state: "offline",
+        detail: `gh copilot help check failed: ${copilotHelpOutput}`,
+        checkedAt
+      };
+    }
+
+    const isCopilotCliBridgeMode = containsAny(copilotHelpOutput, [
+      "Runs the GitHub Copilot CLI.",
+      "gh copilot [flags] [args]"
+    ]);
+
+    if (isCopilotCliBridgeMode) {
+      const copilotVersion = this.runLocalCommand("gh", ["copilot", "--", "--version"], 6000);
+      const copilotVersionOutput = compactOutput(copilotVersion.stdout, copilotVersion.stderr);
+      if (copilotVersion.status === 0) {
+        return {
+          state: "logged-in",
+          detail: `GitHub login detected. Copilot CLI bridge ready. ${copilotVersionOutput}`,
+          checkedAt
+        };
+      }
+
+      if (containsAny(copilotVersionOutput, ["not logged", "authentication", "token", "gh auth login"])) {
+        return {
+          state: "token-expired",
+          detail: `Copilot auth needs refresh. ${copilotVersionOutput}`,
+          checkedAt
+        };
+      }
+
+      return {
+        state: "offline",
+        detail: `Copilot CLI bridge check failed: ${copilotVersionOutput}`,
+        checkedAt
+      };
+    }
+
     const copilotStatus = this.runLocalCommand("gh", ["copilot", "status"], 6000);
     const copilotOutput = compactOutput(copilotStatus.stdout, copilotStatus.stderr);
 
@@ -1278,17 +1513,9 @@ export default class CopilotSidebarPlugin extends Plugin {
       };
     }
 
-    if (containsAny(copilotOutput, ["unknown command", "usage:"])) {
-      return {
-        state: "logged-in",
-        detail: "GitHub login detected. Copilot status command unavailable in this gh build.",
-        checkedAt
-      };
-    }
-
     return {
-      state: "logged-in",
-      detail: `GitHub login detected. Copilot status inconclusive: ${copilotOutput}`,
+      state: "offline",
+      detail: `Unable to determine Copilot status. ${copilotOutput}`,
       checkedAt
     };
   }
@@ -1309,13 +1536,14 @@ export default class CopilotSidebarPlugin extends Plugin {
         spawnSync: (
           cmd: string,
           cmdArgs: string[],
-          options: { encoding: "utf8"; timeout: number }
+          options: { encoding: "utf8"; timeout: number; maxBuffer: number }
         ) => { status: number | null; stdout?: string; stderr?: string; error?: unknown };
       };
 
       const result = childProcess.spawnSync(command, args, {
         encoding: "utf8",
-        timeout: timeoutMs
+        timeout: timeoutMs,
+        maxBuffer: 4 * 1024 * 1024
       });
 
       const error = result.error instanceof Error ? result.error.message : null;
@@ -1529,6 +1757,7 @@ export default class CopilotSidebarPlugin extends Plugin {
       `model=${this.settings.model}`,
       `contextPolicy=${this.settings.contextPolicy}`,
       `changeApplyPolicy=${this.settings.changeApplyPolicy}`,
+      `engineId=${d.lastEngineId}`,
       `firstTokenLatencyMs=${Math.round(d.lastFirstTokenLatencyMs)}`,
       `responseDurationMs=${Math.round(d.lastResponseDurationMs)}`,
       `responseTokenCount=${d.lastResponseTokenCount}`,
@@ -1607,6 +1836,71 @@ export default class CopilotSidebarPlugin extends Plugin {
     this.settings.diagnostics.updatedAt = Date.now();
   }
 
+  private async requestLiveResponse(prompt: string, context: PromptContext): Promise<LiveResponse> {
+    if (!this.copilotAdapter) {
+      this.recordError("unknown", "Copilot adapter is not initialized.");
+      return {
+        response: "Copilot adapter is not initialized. Reload the plugin and try again.",
+        live: false,
+        engineId: "adapter-uninitialized"
+      };
+    }
+
+    if (this.settings.authState !== "logged-in") {
+      return {
+        response: `Auth state is ${this.settings.authState}. Re-authenticate before sending a live Copilot request.`,
+        live: false,
+        engineId: "auth-blocked"
+      };
+    }
+
+    const request: CopilotPromptRequest = {
+      prompt,
+      context,
+      model: this.settings.model,
+      contextPolicy: this.settings.contextPolicy,
+      changeApplyPolicy: this.settings.changeApplyPolicy
+    };
+
+    try {
+      const result = await this.copilotAdapter.sendPrompt(request);
+      this.settings.authState = "logged-in";
+      this.settings.authDetail = `Live response received via ${result.engineId}.`;
+      this.settings.authCheckedAt = Date.now();
+
+      return {
+        response: result.content,
+        live: true,
+        engineId: result.engineId
+      };
+    } catch (error) {
+      const failure = error instanceof CopilotEngineFailure
+        ? error
+        : new CopilotEngineFailure(
+          `Unexpected Copilot request error: ${error instanceof Error ? error.message : String(error)}`,
+          "offline",
+          "unknown"
+        );
+
+      this.settings.authState = failure.authState;
+      this.settings.authDetail = failure.message;
+      this.settings.authCheckedAt = Date.now();
+      this.recordError(failure.category, failure.message);
+
+      return {
+        response: [
+          "Live Copilot request failed.",
+          "",
+          failure.message,
+          "",
+          "Use Refresh Auth and retry."
+        ].join("\n"),
+        live: false,
+        engineId: `${this.copilotAdapter.id}:error`
+      };
+    }
+  }
+
   async sendUserMessage(prompt: string, providedContext?: PromptContext): Promise<void> {
     const trimmed = prompt.trim();
     if (!trimmed) {
@@ -1655,10 +1949,14 @@ export default class CopilotSidebarPlugin extends Plugin {
     await this.persistAndRender();
 
     const context = providedContext ?? await this.getPromptContext();
-    const response = this.composeMockResponse(trimmed, context);
-    const tokens = response.split(" ");
-
     const streamStartedAt = Date.now();
+    const liveResponse = await this.requestLiveResponse(trimmed, context);
+    const response = liveResponse.response;
+    const tokens = response.split(" ").filter((token) => token.length > 0);
+    if (tokens.length === 0) {
+      tokens.push("(empty-response)");
+    }
+
     let firstTokenAt: number | null = null;
     let lastRenderAt = 0;
     let renderCount = 0;
@@ -1697,14 +1995,20 @@ export default class CopilotSidebarPlugin extends Plugin {
     this.settings.diagnostics.lastResponseDurationMs = streamFinishedAt - streamStartedAt;
     this.settings.diagnostics.lastResponseTokenCount = tokens.length;
     this.settings.diagnostics.lastStreamRenderCount = renderCount;
+    this.settings.diagnostics.lastEngineId = liveResponse.engineId;
     this.settings.diagnostics.updatedAt = streamFinishedAt;
 
-    if (this.settings.authState === "logged-in") {
+    if (liveResponse.live) {
       this.settings.lastFailedPrompt = "";
       this.clearError();
+    } else if (this.settings.retryFailedPrompt) {
+      this.settings.lastFailedPrompt = trimmed;
     }
 
-    await this.maybeCreatePendingChange(trimmed, response, context);
+    if (liveResponse.live) {
+      await this.maybeCreatePendingChange(trimmed, response, context);
+    }
+
     this.syncSelectedPendingChange();
     await this.persistAndRender();
   }
@@ -1815,42 +2119,6 @@ export default class CopilotSidebarPlugin extends Plugin {
     }
 
     return notes;
-  }
-
-  private composeMockResponse(prompt: string, context: PromptContext): string {
-    if (this.settings.authState !== "logged-in") {
-      return `Auth state is ${this.settings.authState}. Re-authenticate before sending production requests.`;
-    }
-
-    const selectionSummary = context.selection
-      ? `Selection context: ${context.selection.slice(0, 220)}`
-      : "Selection context: <empty>";
-
-    const noteSummary = context.noteContent
-      ? `Active note context: ${context.noteContent.slice(0, 220)}`
-      : "Active note context: <empty>";
-
-    const additionalSummary = context.additionalNotes.length > 0
-      ? context.additionalNotes
-        .map((note) => `${note.path}: ${note.content.slice(0, 120)}`)
-        .join(" | ")
-      : "No explicit additional note contexts.";
-
-    const primaryContext = this.settings.contextPolicy === "selection-first" ? selectionSummary : noteSummary;
-    const secondaryContext = this.settings.contextPolicy === "selection-first" ? noteSummary : selectionSummary;
-
-    return [
-      `Model ${this.settings.model} mock response:`,
-      `Prompt: ${prompt}`,
-      `Primary context (${this.settings.contextPolicy}): ${primaryContext}`,
-      `Secondary context: ${secondaryContext}`,
-      `Write policy: ${this.settings.changeApplyPolicy}`,
-      `Merged additional context: ${additionalSummary}`,
-      "Suggested next steps:",
-      "1. Validate key claims in your note.",
-      "2. Refine structure with clear headings.",
-      "3. Apply pending change if you want an auto-generated patch."
-    ].join(" ");
   }
 
   private async maybeCreatePendingChange(prompt: string, response: string, context: PromptContext): Promise<void> {

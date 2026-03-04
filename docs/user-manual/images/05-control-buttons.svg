@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 440" width="760" height="440">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ff6b6b"/>
+    </marker>
+  </defs>
+  <rect width="760" height="440" fill="#1e1e2e" rx="12"/>
+  <text x="30" y="35" font-family="system-ui,sans-serif" font-size="15" fill="#e0e0f0" text-anchor="start" font-weight="700">컨트롤 버튼 바 (8개 기능 버튼)</text>
+
+  <!-- Buttons grid -->
+  <rect x="20" y="55" width="360" height="100" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <rect x="30" y="65" width="105" height="32" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="82.5" y="85" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">New Session</text>
+  <rect x="143" y="65" width="115" height="32" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="200.5" y="85" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Ask Current Note</text>
+  <rect x="266" y="65" width="105" height="32" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="318.5" y="85" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Apply Pending</text>
+  <rect x="30" y="105" width="115" height="32" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="87.5" y="125" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Add Active Context</text>
+  <rect x="153" y="105" width="100" height="32" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="203" y="125" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Refresh Auth</text>
+  <rect x="261" y="105" width="105" height="32" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="313.5" y="125" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Retry Failed</text>
+
+  <rect x="20" y="160" width="360" height="55" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <rect x="30" y="170" width="115" height="32" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="87.5" y="190" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Copy Diagnostics</text>
+  <rect x="153" y="170" width="120" height="32" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="213" y="190" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Capture Feedback</text>
+
+  <!-- Description cards -->
+  <rect x="400" y="55" width="340" height="375" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="415" y="80" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="start" font-weight="700">버튼별 기능 설명</text>
+  
+  <text x="415" y="105" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="600">🔵 New Session</text>
+  <text x="415" y="120" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">새 채팅 세션 시작 (최대 20개)</text>
+  
+  <text x="415" y="145" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="600">🔵 Ask Current Note</text>
+  <text x="415" y="160" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">현재 열린 노트를 컨텍스트로 질문</text>
+  
+  <text x="415" y="185" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="600">🔵 Apply Pending</text>
+  <text x="415" y="200" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">대기 중인 변경사항 적용</text>
+  
+  <text x="415" y="225" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="600">🔵 Add Active Context</text>
+  <text x="415" y="240" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">현재 노트를 추가 컨텍스트에 등록</text>
+  
+  <text x="415" y="265" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="600">🔵 Refresh Auth</text>
+  <text x="415" y="280" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">GitHub 인증 상태 새로고침</text>
+  
+  <text x="415" y="305" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="600">🔵 Retry Failed</text>
+  <text x="415" y="320" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">마지막 실패한 프롬프트 재시도</text>
+  
+  <text x="415" y="345" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="600">🔵 Copy Diagnostics</text>
+  <text x="415" y="360" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">진단 요약을 클립보드에 복사</text>
+  
+  <text x="415" y="385" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="600">🔵 Capture Feedback</text>
+  <text x="415" y="400" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">베타 피드백 노트 생성</text>
+
+  <!-- Arrows connecting buttons to descriptions -->
+  <line x1="371" y1="81" x2="398" y2="81" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="371" y1="121" x2="398" y2="121" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+</svg>

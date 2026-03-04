@@ -34,6 +34,11 @@ var STREAM_RENDER_INTERVAL_MS = 90;
 var STREAM_RENDER_BATCH_TOKENS = 6;
 var PREVIEW_MAX_LINES = 120;
 var BETA_FEEDBACK_FOLDER = "Copilot Sidebar Feedback";
+var COPILOT_PROMPT_TIMEOUT_MS = 12e4;
+var COPILOT_CONTEXT_NOTE_CHARS = 6e3;
+var COPILOT_CONTEXT_SELECTION_CHARS = 1200;
+var COPILOT_CONTEXT_ADDITIONAL_NOTE_CHARS = 1e3;
+var COPILOT_CONTEXT_ADDITIONAL_TOTAL_CHARS = 4e3;
 var RECOMMENDED_MODELS = ["gpt-5.3-codex", "gpt-4.1", "gpt-4o-mini"];
 var AUTH_ORDER = ["logged-in", "no-entitlement", "token-expired", "offline"];
 function createId(prefix) {
@@ -76,6 +81,7 @@ function defaultDiagnostics() {
     lastResponseDurationMs: 0,
     lastResponseTokenCount: 0,
     lastStreamRenderCount: 0,
+    lastEngineId: "not-yet-run",
     lastErrorCategory: "none",
     lastErrorMessage: "",
     updatedAt: Date.now()
@@ -186,6 +192,7 @@ function normalizeDiagnostics(raw) {
     lastResponseDurationMs: typeof source.lastResponseDurationMs === "number" ? source.lastResponseDurationMs : fallback.lastResponseDurationMs,
     lastResponseTokenCount: typeof source.lastResponseTokenCount === "number" ? source.lastResponseTokenCount : fallback.lastResponseTokenCount,
     lastStreamRenderCount: typeof source.lastStreamRenderCount === "number" ? source.lastStreamRenderCount : fallback.lastStreamRenderCount,
+    lastEngineId: typeof source.lastEngineId === "string" && source.lastEngineId.trim().length > 0 ? source.lastEngineId : fallback.lastEngineId,
     lastErrorCategory: isErrorCategory(source.lastErrorCategory) ? source.lastErrorCategory : fallback.lastErrorCategory,
     lastErrorMessage: typeof source.lastErrorMessage === "string" ? source.lastErrorMessage : fallback.lastErrorMessage,
     updatedAt: typeof source.updatedAt === "number" ? source.updatedAt : fallback.updatedAt
@@ -244,6 +251,128 @@ function normalizeSettings(raw) {
     diagnostics,
     debugLogging: Boolean(source.debugLogging)
   };
+}
+var CopilotEngineFailure = class extends Error {
+  constructor(message, authState, category) {
+    super(message);
+    this.authState = authState;
+    this.category = category;
+    this.name = "CopilotEngineFailure";
+  }
+};
+var GhCopilotCliAdapter = class {
+  constructor(runCommand) {
+    this.runCommand = runCommand;
+    this.id = "gh-copilot-cli";
+  }
+  async sendPrompt(request) {
+    const payload = this.buildPromptPayload(request);
+    let commandResult = this.runCommand(
+      "gh",
+      ["copilot", "-p", payload, "--allow-tool", "none"],
+      COPILOT_PROMPT_TIMEOUT_MS
+    );
+    if (commandResult.status !== 0 && this.shouldRetryWithoutAllowTool(commandResult)) {
+      commandResult = this.runCommand(
+        "gh",
+        ["copilot", "-p", payload],
+        COPILOT_PROMPT_TIMEOUT_MS
+      );
+    }
+    if (commandResult.status !== 0) {
+      throw this.classifyFailure(commandResult);
+    }
+    const output = sanitizeCopilotOutput(commandResult.stdout);
+    if (!output) {
+      throw new CopilotEngineFailure(
+        "Copilot CLI returned an empty response.",
+        "logged-in",
+        "validation"
+      );
+    }
+    return {
+      engineId: this.id,
+      content: output,
+      rawOutput: commandResult.stdout
+    };
+  }
+  buildPromptPayload(request) {
+    const selectionExcerpt = request.context.selection.trim().length > 0 ? request.context.selection.slice(0, COPILOT_CONTEXT_SELECTION_CHARS) : "<none>";
+    const noteExcerpt = request.context.noteContent.trim().length > 0 ? request.context.noteContent.slice(0, COPILOT_CONTEXT_NOTE_CHARS) : "<none>";
+    let remainingAdditional = COPILOT_CONTEXT_ADDITIONAL_TOTAL_CHARS;
+    const additionalBlocks = [];
+    for (const note of request.context.additionalNotes) {
+      if (remainingAdditional <= 0) {
+        break;
+      }
+      const excerpt = note.content.slice(0, Math.min(COPILOT_CONTEXT_ADDITIONAL_NOTE_CHARS, remainingAdditional));
+      remainingAdditional -= excerpt.length;
+      additionalBlocks.push(`### ${note.path}
+${excerpt || "<empty>"}`);
+    }
+    const additionalContext = additionalBlocks.length > 0 ? additionalBlocks.join("\n\n") : "<none>";
+    return [
+      "You are helping inside an Obsidian plugin session via GitHub Copilot CLI.",
+      "Return only Markdown content for the assistant answer.",
+      `Model preference: ${request.model}`,
+      `Context policy: ${request.contextPolicy}`,
+      `Write policy: ${request.changeApplyPolicy}`,
+      "",
+      "## User Prompt",
+      request.prompt,
+      "",
+      "## Active Note",
+      `Path: ${request.context.notePath ?? "<none>"}`,
+      noteExcerpt,
+      "",
+      "## Current Selection",
+      selectionExcerpt,
+      "",
+      "## Additional Context Notes",
+      additionalContext
+    ].join("\n");
+  }
+  shouldRetryWithoutAllowTool(commandResult) {
+    const output = compactOutput(commandResult.stdout, `${commandResult.stderr}
+${commandResult.error ?? ""}`);
+    return containsAny(output, [
+      "unknown option '--allow-tool'",
+      "unknown flag: --allow-tool",
+      "did you mean --allow-tools"
+    ]);
+  }
+  classifyFailure(commandResult) {
+    const output = compactOutput(commandResult.stdout, `${commandResult.stderr}
+${commandResult.error ?? ""}`);
+    const detail = output.length > 500 ? `${output.slice(0, 497)}...` : output;
+    const message = `Copilot CLI request failed: ${detail}`;
+    if (containsAny(output, ["not entitled", "no entitlement", "not enabled", "subscription", "plan"])) {
+      return new CopilotEngineFailure(message, "no-entitlement", "entitlement");
+    }
+    if (containsAny(output, ["not logged", "gh auth login", "authentication", "token", "reauth"])) {
+      return new CopilotEngineFailure(message, "token-expired", "auth");
+    }
+    if (containsAny(output, ["timed out", "timeout", "network", "connection", "offline", "enotfound", "econn"])) {
+      return new CopilotEngineFailure(message, "offline", "network");
+    }
+    if (containsAny(output, ["enoent", "not found", "require-unavailable"])) {
+      return new CopilotEngineFailure(message, "offline", "network");
+    }
+    return new CopilotEngineFailure(message, "offline", "unknown");
+  }
+};
+function sanitizeCopilotOutput(rawOutput) {
+  const withoutAnsi = rawOutput.replace(/\u001b\[[0-9;]*m/g, "").replace(/\r/g, "");
+  const lines = withoutAnsi.split("\n");
+  const usageStartIndex = lines.findIndex((line) => line.trim().startsWith("Total usage est:"));
+  const contentLines = usageStartIndex >= 0 ? lines.slice(0, usageStartIndex) : lines;
+  while (contentLines.length > 0 && contentLines[0].trim().length === 0) {
+    contentLines.shift();
+  }
+  while (contentLines.length > 0 && contentLines[contentLines.length - 1].trim().length === 0) {
+    contentLines.pop();
+  }
+  return contentLines.join("\n").trim();
 }
 var CopilotSidebarView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
@@ -498,6 +627,7 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     panel.createDiv({ text: `Last feedback note: ${feedbackPath}`, cls: "copilot-setting-hint" });
     const diagnostics = snapshot.diagnostics;
     const diagnosticsLines = [
+      `Engine: ${diagnostics.lastEngineId}`,
       `First token: ${formatDurationMs(diagnostics.lastFirstTokenLatencyMs)}`,
       `Response duration: ${formatDurationMs(diagnostics.lastResponseDurationMs)}`,
       `Response tokens: ${diagnostics.lastResponseTokenCount}`,
@@ -657,9 +787,11 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     this.streaming = false;
     this.activeStreamTimers = /* @__PURE__ */ new Set();
     this.selectedPendingChangeId = null;
+    this.copilotAdapter = null;
   }
   async onload() {
     await this.loadSettings();
+    this.copilotAdapter = new GhCopilotCliAdapter((command, args, timeoutMs) => this.runLocalCommand(command, args, timeoutMs));
     this.registerView(VIEW_TYPE_COPILOT_SIDEBAR, (leaf) => new CopilotSidebarView(leaf, this));
     this.addCommand({
       id: "open-copilot-sidebar",
@@ -927,6 +1059,42 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
         checkedAt
       };
     }
+    const copilotHelp = this.runLocalCommand("gh", ["copilot", "--help"], 6e3);
+    const copilotHelpOutput = compactOutput(copilotHelp.stdout, copilotHelp.stderr);
+    if (copilotHelp.status !== 0) {
+      return {
+        state: "offline",
+        detail: `gh copilot help check failed: ${copilotHelpOutput}`,
+        checkedAt
+      };
+    }
+    const isCopilotCliBridgeMode = containsAny(copilotHelpOutput, [
+      "Runs the GitHub Copilot CLI.",
+      "gh copilot [flags] [args]"
+    ]);
+    if (isCopilotCliBridgeMode) {
+      const copilotVersion = this.runLocalCommand("gh", ["copilot", "--", "--version"], 6e3);
+      const copilotVersionOutput = compactOutput(copilotVersion.stdout, copilotVersion.stderr);
+      if (copilotVersion.status === 0) {
+        return {
+          state: "logged-in",
+          detail: `GitHub login detected. Copilot CLI bridge ready. ${copilotVersionOutput}`,
+          checkedAt
+        };
+      }
+      if (containsAny(copilotVersionOutput, ["not logged", "authentication", "token", "gh auth login"])) {
+        return {
+          state: "token-expired",
+          detail: `Copilot auth needs refresh. ${copilotVersionOutput}`,
+          checkedAt
+        };
+      }
+      return {
+        state: "offline",
+        detail: `Copilot CLI bridge check failed: ${copilotVersionOutput}`,
+        checkedAt
+      };
+    }
     const copilotStatus = this.runLocalCommand("gh", ["copilot", "status"], 6e3);
     const copilotOutput = compactOutput(copilotStatus.stdout, copilotStatus.stderr);
     if (copilotStatus.status === 0) {
@@ -950,16 +1118,9 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
         checkedAt
       };
     }
-    if (containsAny(copilotOutput, ["unknown command", "usage:"])) {
-      return {
-        state: "logged-in",
-        detail: "GitHub login detected. Copilot status command unavailable in this gh build.",
-        checkedAt
-      };
-    }
     return {
-      state: "logged-in",
-      detail: `GitHub login detected. Copilot status inconclusive: ${copilotOutput}`,
+      state: "offline",
+      detail: `Unable to determine Copilot status. ${copilotOutput}`,
       checkedAt
     };
   }
@@ -977,7 +1138,8 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       const childProcess = dynamicRequire("node:child_process");
       const result = childProcess.spawnSync(command, args, {
         encoding: "utf8",
-        timeout: timeoutMs
+        timeout: timeoutMs,
+        maxBuffer: 4 * 1024 * 1024
       });
       const error = result.error instanceof Error ? result.error.message : null;
       return {
@@ -1156,6 +1318,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       `model=${this.settings.model}`,
       `contextPolicy=${this.settings.contextPolicy}`,
       `changeApplyPolicy=${this.settings.changeApplyPolicy}`,
+      `engineId=${d.lastEngineId}`,
       `firstTokenLatencyMs=${Math.round(d.lastFirstTokenLatencyMs)}`,
       `responseDurationMs=${Math.round(d.lastResponseDurationMs)}`,
       `responseTokenCount=${d.lastResponseTokenCount}`,
@@ -1224,6 +1387,62 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     this.settings.diagnostics.lastErrorMessage = "";
     this.settings.diagnostics.updatedAt = Date.now();
   }
+  async requestLiveResponse(prompt, context) {
+    if (!this.copilotAdapter) {
+      this.recordError("unknown", "Copilot adapter is not initialized.");
+      return {
+        response: "Copilot adapter is not initialized. Reload the plugin and try again.",
+        live: false,
+        engineId: "adapter-uninitialized"
+      };
+    }
+    if (this.settings.authState !== "logged-in") {
+      return {
+        response: `Auth state is ${this.settings.authState}. Re-authenticate before sending a live Copilot request.`,
+        live: false,
+        engineId: "auth-blocked"
+      };
+    }
+    const request = {
+      prompt,
+      context,
+      model: this.settings.model,
+      contextPolicy: this.settings.contextPolicy,
+      changeApplyPolicy: this.settings.changeApplyPolicy
+    };
+    try {
+      const result = await this.copilotAdapter.sendPrompt(request);
+      this.settings.authState = "logged-in";
+      this.settings.authDetail = `Live response received via ${result.engineId}.`;
+      this.settings.authCheckedAt = Date.now();
+      return {
+        response: result.content,
+        live: true,
+        engineId: result.engineId
+      };
+    } catch (error) {
+      const failure = error instanceof CopilotEngineFailure ? error : new CopilotEngineFailure(
+        `Unexpected Copilot request error: ${error instanceof Error ? error.message : String(error)}`,
+        "offline",
+        "unknown"
+      );
+      this.settings.authState = failure.authState;
+      this.settings.authDetail = failure.message;
+      this.settings.authCheckedAt = Date.now();
+      this.recordError(failure.category, failure.message);
+      return {
+        response: [
+          "Live Copilot request failed.",
+          "",
+          failure.message,
+          "",
+          "Use Refresh Auth and retry."
+        ].join("\n"),
+        live: false,
+        engineId: `${this.copilotAdapter.id}:error`
+      };
+    }
+  }
   async sendUserMessage(prompt, providedContext) {
     const trimmed = prompt.trim();
     if (!trimmed) {
@@ -1265,9 +1484,13 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     this.streaming = true;
     await this.persistAndRender();
     const context = providedContext ?? await this.getPromptContext();
-    const response = this.composeMockResponse(trimmed, context);
-    const tokens = response.split(" ");
     const streamStartedAt = Date.now();
+    const liveResponse = await this.requestLiveResponse(trimmed, context);
+    const response = liveResponse.response;
+    const tokens = response.split(" ").filter((token) => token.length > 0);
+    if (tokens.length === 0) {
+      tokens.push("(empty-response)");
+    }
     let firstTokenAt = null;
     let lastRenderAt = 0;
     let renderCount = 0;
@@ -1296,12 +1519,17 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     this.settings.diagnostics.lastResponseDurationMs = streamFinishedAt - streamStartedAt;
     this.settings.diagnostics.lastResponseTokenCount = tokens.length;
     this.settings.diagnostics.lastStreamRenderCount = renderCount;
+    this.settings.diagnostics.lastEngineId = liveResponse.engineId;
     this.settings.diagnostics.updatedAt = streamFinishedAt;
-    if (this.settings.authState === "logged-in") {
+    if (liveResponse.live) {
       this.settings.lastFailedPrompt = "";
       this.clearError();
+    } else if (this.settings.retryFailedPrompt) {
+      this.settings.lastFailedPrompt = trimmed;
     }
-    await this.maybeCreatePendingChange(trimmed, response, context);
+    if (liveResponse.live) {
+      await this.maybeCreatePendingChange(trimmed, response, context);
+    }
     this.syncSelectedPendingChange();
     await this.persistAndRender();
   }
@@ -1391,28 +1619,6 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       notes.push({ path: notePath, content });
     }
     return notes;
-  }
-  composeMockResponse(prompt, context) {
-    if (this.settings.authState !== "logged-in") {
-      return `Auth state is ${this.settings.authState}. Re-authenticate before sending production requests.`;
-    }
-    const selectionSummary = context.selection ? `Selection context: ${context.selection.slice(0, 220)}` : "Selection context: <empty>";
-    const noteSummary = context.noteContent ? `Active note context: ${context.noteContent.slice(0, 220)}` : "Active note context: <empty>";
-    const additionalSummary = context.additionalNotes.length > 0 ? context.additionalNotes.map((note) => `${note.path}: ${note.content.slice(0, 120)}`).join(" | ") : "No explicit additional note contexts.";
-    const primaryContext = this.settings.contextPolicy === "selection-first" ? selectionSummary : noteSummary;
-    const secondaryContext = this.settings.contextPolicy === "selection-first" ? noteSummary : selectionSummary;
-    return [
-      `Model ${this.settings.model} mock response:`,
-      `Prompt: ${prompt}`,
-      `Primary context (${this.settings.contextPolicy}): ${primaryContext}`,
-      `Secondary context: ${secondaryContext}`,
-      `Write policy: ${this.settings.changeApplyPolicy}`,
-      `Merged additional context: ${additionalSummary}`,
-      "Suggested next steps:",
-      "1. Validate key claims in your note.",
-      "2. Refine structure with clear headings.",
-      "3. Apply pending change if you want an auto-generated patch."
-    ].join(" ");
   }
   async maybeCreatePendingChange(prompt, response, context) {
     if (this.settings.authState !== "logged-in") {

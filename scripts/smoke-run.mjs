@@ -259,6 +259,7 @@ try {
   assert.equal(body.children[0].cls, "copilot-sidebar-root", "root class should be rendered");
 
   const openCommand = plugin.__commands.find((command) => command.id === "open-copilot-sidebar");
+  const askNoteCommand = plugin.__commands.find((command) => command.id === "ask-about-current-note");
   const startSessionCommand = plugin.__commands.find((command) => command.id === "start-new-chat-session");
   const applyCommand = plugin.__commands.find((command) => command.id === "apply-pending-changes");
   const captureFeedbackCommand = plugin.__commands.find((command) => command.id === "capture-beta-feedback-note");
@@ -269,6 +270,7 @@ try {
   const undoCommand = plugin.__commands.find((command) => command.id === "undo-last-applied-change");
 
   assert.ok(openCommand, "open command should exist");
+  assert.ok(askNoteCommand, "ask current note command should exist");
   assert.ok(startSessionCommand, "start session command should exist");
   assert.ok(applyCommand, "apply command should exist");
   assert.ok(captureFeedbackCommand, "capture feedback command should exist");
@@ -279,6 +281,7 @@ try {
   assert.ok(undoCommand, "undo command should exist");
 
   await openCommand.callback();
+  await askNoteCommand.callback();
   await openSettingsCommand.callback();
   await startSessionCommand.callback();
   await applyCommand.callback();
@@ -294,8 +297,19 @@ try {
   assert.ok(events.revealLeafCalls >= 1, "revealLeaf should be called at least once");
   assert.ok(events.notices.includes("No pending changes to apply."), "apply command should show empty-state notice");
   assert.ok(events.notices.some((notice) => notice.startsWith("Beta feedback note created:")), "capture feedback should create a feedback note");
-  assert.ok(events.notices.includes("No failed prompt to retry."), "retry command should show empty-state notice");
+  assert.ok(
+    events.notices.includes("No failed prompt to retry.")
+    || events.notices.some((notice) => notice.startsWith("Cannot retry while auth is")),
+    "retry command should show retry guidance notice"
+  );
   assert.ok(events.notices.includes("No applied change to undo."), "undo command should show empty-state notice");
+  const storedSessions = plugin.__storedData?.sessions ?? [];
+  const flattenedMessages = storedSessions.flatMap((session) => Array.isArray(session.messages) ? session.messages : []);
+  assert.ok(flattenedMessages.length >= 2, "ask command should append user and assistant messages");
+  assert.ok(
+    flattenedMessages.some((message) => typeof message.content === "string" && message.content.includes("Auth state is offline")),
+    "assistant should return auth-blocked guidance while offline"
+  );
   assert.ok(events.createdFolders.includes("Copilot Sidebar Feedback"), "feedback folder should be created");
   assert.ok(events.createdFiles.length >= 1, "at least one feedback file should be created");
 

@@ -138,3 +138,14 @@
 | M6-C04 | README v1.0.0 반영 및 CI 배지 추가 | Copilot CLI | `npm run check && npm run build` |
 | M6-C05 | 최종 검증 게이트 통과 | Copilot CLI | `npm run verify:e2e` |
 | M6-CL01 | GitHub 릴리스 태그 v1.0.0 및 Cloud 검증 | Cloud Agent | `npm run cloud:dispatch` 후 최신 run success 확인 |
+
+## 15) Iteration 10 (M7 Live Copilot Bridge) ✅
+
+| ID | 목표 | 담당 | 독립 검증 기준 |
+|---|---|---|---|
+| M7-S01 | 목업 응답 경로/실연동 리스크 점검 | Subagent | `src/main.ts`에서 `composeMockResponse` 제거 여부 및 리스크 체크리스트 |
+| M7-C01 | `CopilotEngineAdapter` 인터페이스 + `GhCopilotCliAdapter` 구현 | Copilot CLI | `npm run check && npm run build` |
+| M7-C02 | `sendUserMessage`를 라이브 엔진 호출 경로로 전환 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
+| M7-C03 | 최신 `gh copilot` 브리지 모드 probe 호환 | Copilot CLI | 수동 `Refresh auth status` + `gh copilot -- --version` |
+| M7-C04 | 진단에 `lastEngineId` 노출 | Copilot CLI | `copy-diagnostics-summary` 출력에 `engineId=` 포함 |
+| M7-CL01 | Cloud Validation 재현 검증 | Cloud Agent | `npm run cloud:dispatch` + `npm run cloud:status` |

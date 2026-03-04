@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 380" width="700" height="380">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ff6b6b"/>
+    </marker>
+  </defs>
+  <rect width="700" height="380" fill="#1e1e2e" rx="12"/>
+  <text x="30" y="35" font-family="system-ui,sans-serif" font-size="15" fill="#e0e0f0" text-anchor="start" font-weight="700">현재 노트에 대해 질문하기</text>
+
+  <!-- Obsidian editor mock (left) -->
+  <rect x="20" y="55" width="320" height="300" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="35" y="80" font-family="system-ui,sans-serif" font-size="12" fill="#7aa2f7" text-anchor="start" font-weight="normal">📝 my-project-plan.md</text>
+  <rect x="30" y="90" width="300" height="250" rx="6" fill="#1e1e2e" stroke="#44445a" stroke-width="1"/>
+  <text x="42" y="115" font-family="system-ui,sans-serif" font-size="12" fill="#c0caf5" text-anchor="start" font-weight="normal"># 프로젝트 계획</text>
+  <text x="42" y="140" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">## 목표</text>
+  <text x="42" y="160" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">- MVP 개발 완료</text>
+  <text x="42" y="180" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">- 사용자 테스트 진행</text>
+  <text x="42" y="200" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">## 일정</text>
+  <text x="42" y="220" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">- 1주차: 설계</text>
+  <text x="42" y="240" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">- 2주차: 구현</text>
+
+  <!-- Arrow -->
+  <circle cx="360" cy="110" r="14" fill="#ff6b6b"/><text x="360" y="115" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">1</text>
+  <text x="350" y="145" font-family="system-ui,sans-serif" font-size="10" fill="#ff6b6b" text-anchor="middle" font-weight="normal">노트를 연 상태에서</text>
+
+  <line x1="370" y1="150" x2="440" y2="150" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- Sidebar (right) -->
+  <rect x="380" y="55" width="300" height="300" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="395" y="80" font-family="system-ui,sans-serif" font-size="12" fill="#e0e0f0" text-anchor="start" font-weight="700">Copilot Sidebar</text>
+  
+  <rect x="395" y="90" width="120" height="28" rx="6" fill="#7aa2f7" stroke="#44445a" stroke-width="1"/><text x="455" y="108" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Ask Current Note</text>
+  <circle cx="530" cy="104" r="14" fill="#ff6b6b"/><text x="530" y="109" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">2</text>
+  <circle cx="455" cy="104" r="68" fill="none" stroke="#ff6b6b" stroke-width="2.5" stroke-dasharray="4,3"/>
+
+  <rect x="395" y="130" width="270" height="70" rx="8" fill="rgba(122,162,247,0.14)" stroke="#44445a" stroke-width="1"/>
+  <text x="407" y="150" font-family="system-ui,sans-serif" font-size="9" fill="#888899" text-anchor="start" font-weight="600">USER</text>
+  <text x="407" y="168" font-family="system-ui,sans-serif" font-size="10" fill="#7aa2f7" text-anchor="start" font-weight="normal">[Context: my-project-plan.md]</text>
+  <text x="407" y="185" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">이 노트에 대해 분석해주세요</text>
+
+  <rect x="395" y="210" width="270" height="70" rx="8" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="407" y="230" font-family="system-ui,sans-serif" font-size="9" fill="#888899" text-anchor="start" font-weight="600">ASSISTANT</text>
+  <text x="407" y="248" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="start" font-weight="normal">이 문서는 프로젝트 계획서로</text>
+  <text x="407" y="263" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="start" font-weight="normal">MVP 개발 목표와 2주간의</text>
+  <text x="407" y="278" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="start" font-weight="normal">일정이 포함되어 있습니다.</text>
+
+  <text x="30" y="370" font-family="system-ui,sans-serif" font-size="11" fill="#ff6b6b" text-anchor="start" font-weight="700">💡 선택 영역이 있으면 Selection First 정책에 따라 선택 텍스트가 우선 포함됩니다</text>
+</svg>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" width="720" height="400">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ff6b6b"/>
+    </marker>
+  </defs>
+  <rect width="720" height="400" fill="#1e1e2e" rx="12"/>
+  <!-- Obsidian Settings window mock -->
+  <rect x="20" y="15" width="680" height="50" rx="10" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="360" y="47" font-family="system-ui,sans-serif" font-size="16" fill="#e0e0f0" text-anchor="middle" font-weight="700">⚙ Settings</text>
+
+  <!-- Left nav -->
+  <rect x="20" y="80" width="180" height="300" rx="10" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="40" y="115" font-family="system-ui,sans-serif" font-size="12" fill="#888899" text-anchor="start" font-weight="normal">커뮤니티 플러그인</text>
+  <rect x="30" y="125" width="160" height="30" rx="6" fill="rgba(122,162,247,0.14)" stroke="#7aa2f7" stroke-width="1"/>
+  <text x="50" y="145" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="normal">Community plugins</text>
+
+  <!-- Right content -->
+  <rect x="215" y="80" width="485" height="300" rx="10" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="235" y="115" font-family="system-ui,sans-serif" font-size="14" fill="#e0e0f0" text-anchor="start" font-weight="700">커뮤니티 플러그인</text>
+  <text x="235" y="140" font-family="system-ui,sans-serif" font-size="11" fill="#888899" text-anchor="start" font-weight="normal">먼저 커뮤니티 플러그인을 활성화하세요</text>
+
+  <!-- toggle row: restricted mode off -->
+  <rect x="235" y="155" width="445" height="36" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="250" y="178" font-family="system-ui,sans-serif" font-size="12" fill="#c0caf5" text-anchor="start" font-weight="normal">Restricted mode</text>
+  <!-- toggle: off -->
+  <rect x="610" y="162" width="44" height="22" rx="11" fill="#7aa2f7" stroke="none" stroke-width="1"/>
+  <circle cx="641" cy="173" r="8" fill="#e0e0f0"/>
+
+  <!-- search -->
+  <rect x="235" y="205" width="445" height="30" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="255" y="225" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">🔍 Copilot Sidebar</text>
+
+  <!-- plugin row -->
+  <rect x="235" y="248" width="445" height="60" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="255" y="272" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="start" font-weight="600">Copilot Sidebar</text>
+  <text x="255" y="292" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">GitHub Copilot chat experience in Obsidian sidebar</text>
+  <!-- enable toggle -->
+  <rect x="610" y="262" width="44" height="22" rx="11" fill="#44445a" stroke="none" stroke-width="1"/>
+  <circle cx="623" cy="273" r="8" fill="#888899"/>
+
+  <!-- Annotations -->
+  <circle cx="30" cy="137" r="14" fill="#ff6b6b"/><text x="30" y="142" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">1</text>
+  <text x="55" y="30" font-family="system-ui,sans-serif" font-size="12" fill="#ff6b6b" text-anchor="start" font-weight="700">① Settings → Community plugins 이동</text>
+  <circle cx="632" cy="173" r="14" fill="#ff6b6b"/><text x="632" y="178" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">2</text>
+  <line x1="646" y1="173" x2="665" y2="200" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <text x="500" y="140" font-family="system-ui,sans-serif" font-size="12" fill="#ff6b6b" text-anchor="start" font-weight="700">② Restricted mode OFF</text>
+  <circle cx="632" cy="273" r="14" fill="#ff6b6b"/><text x="632" y="278" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">3</text>
+  <circle cx="632" cy="273" r="18" fill="none" stroke="#ff6b6b" stroke-width="2.5" stroke-dasharray="4,3"/>
+  <text x="440" y="330" font-family="system-ui,sans-serif" font-size="12" fill="#ff6b6b" text-anchor="start" font-weight="700">③ Copilot Sidebar 토글 ON</text>
+  <line x1="550" y1="325" x2="614" y2="285" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+</svg>
