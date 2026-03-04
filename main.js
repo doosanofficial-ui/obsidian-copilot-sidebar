@@ -28,7 +28,10 @@ var VIEW_TYPE_COPILOT_SIDEBAR = "copilot-sidebar-view";
 var MAX_SESSIONS = 20;
 var MAX_PENDING_CHANGES = 10;
 var MAX_ADDITIONAL_CONTEXT = 8;
+var MAX_MESSAGES_PER_SESSION = 200;
 var STREAM_DELAY_MS = 30;
+var STREAM_RENDER_INTERVAL_MS = 90;
+var STREAM_RENDER_BATCH_TOKENS = 6;
 var PREVIEW_MAX_LINES = 120;
 var RECOMMENDED_MODELS = ["gpt-5.3-codex", "gpt-4.1", "gpt-4o-mini"];
 var AUTH_ORDER = ["logged-in", "no-entitlement", "token-expired", "offline"];
@@ -61,7 +64,19 @@ function defaultSettings() {
     changeApplyPolicy: "confirm-write",
     retryFailedPrompt: true,
     lastFailedPrompt: "",
+    diagnostics: defaultDiagnostics(),
     debugLogging: false
+  };
+}
+function defaultDiagnostics() {
+  return {
+    lastFirstTokenLatencyMs: 0,
+    lastResponseDurationMs: 0,
+    lastResponseTokenCount: 0,
+    lastStreamRenderCount: 0,
+    lastErrorCategory: "none",
+    lastErrorMessage: "",
+    updatedAt: Date.now()
   };
 }
 function isAuthState(value) {
@@ -72,6 +87,9 @@ function isContextPolicy(value) {
 }
 function isChangeApplyPolicy(value) {
   return value === "confirm-write" || value === "auto-apply";
+}
+function isErrorCategory(value) {
+  return value === "none" || value === "auth" || value === "network" || value === "entitlement" || value === "filesystem" || value === "validation" || value === "unknown";
 }
 function isMessageRole(value) {
   return value === "user" || value === "assistant" || value === "system";
@@ -128,6 +146,12 @@ function buildPreviewDiff(before, after) {
   }
   return out.join("\n");
 }
+function formatDurationMs(ms) {
+  if (ms <= 0) {
+    return "n/a";
+  }
+  return `${Math.round(ms)}ms`;
+}
 function compactOutput(stdout, stderr) {
   const joined = `${stdout}
 ${stderr}`.replace(/\s+/g, " ").trim();
@@ -136,6 +160,34 @@ ${stderr}`.replace(/\s+/g, " ").trim();
 function containsAny(source, patterns) {
   const lowered = source.toLowerCase();
   return patterns.some((pattern) => lowered.includes(pattern));
+}
+function categoryFromAuthState(state) {
+  if (state === "token-expired") {
+    return "auth";
+  }
+  if (state === "offline") {
+    return "network";
+  }
+  if (state === "no-entitlement") {
+    return "entitlement";
+  }
+  return "none";
+}
+function normalizeDiagnostics(raw) {
+  const fallback = defaultDiagnostics();
+  if (!raw || typeof raw !== "object") {
+    return fallback;
+  }
+  const source = raw;
+  return {
+    lastFirstTokenLatencyMs: typeof source.lastFirstTokenLatencyMs === "number" ? source.lastFirstTokenLatencyMs : fallback.lastFirstTokenLatencyMs,
+    lastResponseDurationMs: typeof source.lastResponseDurationMs === "number" ? source.lastResponseDurationMs : fallback.lastResponseDurationMs,
+    lastResponseTokenCount: typeof source.lastResponseTokenCount === "number" ? source.lastResponseTokenCount : fallback.lastResponseTokenCount,
+    lastStreamRenderCount: typeof source.lastStreamRenderCount === "number" ? source.lastStreamRenderCount : fallback.lastStreamRenderCount,
+    lastErrorCategory: isErrorCategory(source.lastErrorCategory) ? source.lastErrorCategory : fallback.lastErrorCategory,
+    lastErrorMessage: typeof source.lastErrorMessage === "string" ? source.lastErrorMessage : fallback.lastErrorMessage,
+    updatedAt: typeof source.updatedAt === "number" ? source.updatedAt : fallback.updatedAt
+  };
 }
 function normalizeSettings(raw) {
   const fallback = defaultSettings();
@@ -148,7 +200,7 @@ function normalizeSettings(raw) {
     title: typeof session.title === "string" && session.title.trim().length > 0 ? session.title : "New chat session",
     createdAt: typeof session.createdAt === "number" ? session.createdAt : Date.now(),
     updatedAt: typeof session.updatedAt === "number" ? session.updatedAt : Date.now(),
-    messages: Array.isArray(session.messages) ? session.messages.filter((message) => Boolean(message && typeof message === "object" && message.id)).map((message) => {
+    messages: Array.isArray(session.messages) ? session.messages.filter((message) => Boolean(message && typeof message === "object" && message.id)).slice(-MAX_MESSAGES_PER_SESSION).map((message) => {
       const role = isMessageRole(message.role) ? message.role : "user";
       return {
         id: String(message.id),
@@ -171,6 +223,7 @@ function normalizeSettings(raw) {
   })) : [];
   const additionalContextPaths = Array.isArray(source.additionalContextPaths) ? Array.from(new Set(source.additionalContextPaths.filter((notePath) => typeof notePath === "string").map((notePath) => notePath.trim()).filter((notePath) => notePath.length > 0))).slice(0, MAX_ADDITIONAL_CONTEXT) : [];
   const lastAppliedChange = normalizeAppliedChange(source.lastAppliedChange);
+  const diagnostics = normalizeDiagnostics(source.diagnostics);
   return {
     sessions: normalizedSessions,
     activeSessionId,
@@ -185,6 +238,7 @@ function normalizeSettings(raw) {
     changeApplyPolicy: isChangeApplyPolicy(source.changeApplyPolicy) ? source.changeApplyPolicy : fallback.changeApplyPolicy,
     retryFailedPrompt: typeof source.retryFailedPrompt === "boolean" ? source.retryFailedPrompt : fallback.retryFailedPrompt,
     lastFailedPrompt: typeof source.lastFailedPrompt === "string" ? source.lastFailedPrompt : fallback.lastFailedPrompt,
+    diagnostics,
     debugLogging: Boolean(source.debugLogging)
   };
 }
@@ -234,6 +288,10 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
       text: "Retry Failed",
       cls: "copilot-button"
     });
+    const copyDiagnosticsButton = controlRow.createEl("button", {
+      text: "Copy Diagnostics",
+      cls: "copilot-button"
+    });
     const layout = root.createDiv({ cls: "copilot-sidebar-layout" });
     const leftPane = layout.createDiv({ cls: "copilot-sidebar-pane copilot-sidebar-pane-sessions" });
     leftPane.createDiv({ text: "Sessions", cls: "copilot-pane-title" });
@@ -273,6 +331,9 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     });
     retryFailedButton.addEventListener("click", () => {
       void this.plugin.retryLastFailedPrompt();
+    });
+    copyDiagnosticsButton.addEventListener("click", () => {
+      void this.plugin.copyDiagnosticsSummary();
     });
     composerButton.addEventListener("click", () => {
       void this.submitComposer();
@@ -423,6 +484,18 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     const failedPrompt = snapshot.lastFailedPrompt.trim();
     const failedText = failedPrompt.length > 0 ? failedPrompt.slice(0, 120) : "None";
     panel.createDiv({ text: `Last failed prompt: ${failedText}`, cls: "copilot-setting-hint" });
+    const diagnostics = snapshot.diagnostics;
+    const diagnosticsLines = [
+      `First token: ${formatDurationMs(diagnostics.lastFirstTokenLatencyMs)}`,
+      `Response duration: ${formatDurationMs(diagnostics.lastResponseDurationMs)}`,
+      `Response tokens: ${diagnostics.lastResponseTokenCount}`,
+      `Stream renders: ${diagnostics.lastStreamRenderCount}`,
+      `Last error: ${diagnostics.lastErrorCategory}`,
+      `Error detail: ${diagnostics.lastErrorMessage || "none"}`,
+      `Updated: ${new Date(diagnostics.updatedAt).toLocaleTimeString()}`
+    ];
+    const diagnosticsBox = panel.createEl("pre", { cls: "copilot-diagnostics-box" });
+    diagnosticsBox.setText(diagnosticsLines.join("\n"));
   }
   renderPendingChanges(snapshot) {
     if (!this.elements) {
@@ -627,6 +700,13 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       }
     });
     this.addCommand({
+      id: "copy-diagnostics-summary",
+      name: "Copy diagnostics summary",
+      callback: async () => {
+        await this.copyDiagnosticsSummary();
+      }
+    });
+    this.addCommand({
       id: "refresh-auth-status",
       name: "Refresh auth status",
       callback: async () => {
@@ -668,6 +748,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       changeApplyPolicy: this.settings.changeApplyPolicy,
       retryFailedPrompt: this.settings.retryFailedPrompt,
       lastFailedPrompt: this.settings.lastFailedPrompt,
+      diagnostics: { ...this.settings.diagnostics },
       debugLogging: this.settings.debugLogging,
       isStreaming: this.streaming
     };
@@ -706,6 +787,17 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     this.settings.debugLogging = enabled;
     await this.persistAndRender();
   }
+  async copyDiagnosticsSummary() {
+    const summary = this.buildDiagnosticsSummary();
+    const clipboard = globalThis.navigator?.clipboard;
+    if (clipboard?.writeText) {
+      await clipboard.writeText(summary);
+      new import_obsidian.Notice("Diagnostics summary copied to clipboard.");
+      return;
+    }
+    console.info("[copilot-sidebar] diagnostics-summary\n" + summary);
+    new import_obsidian.Notice("Diagnostics summary ready in console (clipboard unavailable).");
+  }
   async startNewSession() {
     const session = createSession();
     this.settings.sessions = [session, ...this.settings.sessions].slice(0, MAX_SESSIONS);
@@ -737,6 +829,12 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     this.settings.authState = probe.state;
     this.settings.authDetail = probe.detail;
     this.settings.authCheckedAt = probe.checkedAt;
+    const authCategory = categoryFromAuthState(probe.state);
+    if (authCategory === "none") {
+      this.clearError();
+    } else {
+      this.recordError(authCategory, probe.detail);
+    }
     await this.persistAndRender();
     if (trigger === "manual") {
       new import_obsidian.Notice(`Auth check: ${probe.state}`);
@@ -887,11 +985,13 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
   async applyPendingChange(changeId) {
     const change = this.settings.pendingChanges.find((item) => item.id === changeId);
     if (!change) {
+      this.recordError("validation", "Pending change id was not found during apply.");
       new import_obsidian.Notice("Pending change not found.");
       return;
     }
     const target = this.app.vault.getAbstractFileByPath(change.notePath);
     if (!(target instanceof import_obsidian.TFile)) {
+      this.recordError("filesystem", `Apply target missing: ${change.notePath}`);
       new import_obsidian.Notice(`Target note no longer exists: ${change.notePath}`);
       this.settings.pendingChanges = this.settings.pendingChanges.filter((item) => item.id !== changeId);
       this.syncSelectedPendingChange();
@@ -901,11 +1001,13 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     if (this.settings.changeApplyPolicy === "confirm-write") {
       const accepted = typeof window !== "undefined" ? window.confirm(`Apply pending change to ${change.notePath}?`) : true;
       if (!accepted) {
+        this.recordError("validation", `Apply confirmation canceled for ${change.notePath}`);
         new import_obsidian.Notice("Apply canceled by policy confirmation.");
         return;
       }
     }
     await this.app.vault.modify(target, change.after);
+    this.clearError();
     this.settings.lastAppliedChange = {
       ...change,
       appliedAt: Date.now()
@@ -919,6 +1021,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     const beforeCount = this.settings.pendingChanges.length;
     this.settings.pendingChanges = this.settings.pendingChanges.filter((change) => change.id !== changeId);
     if (this.settings.pendingChanges.length === beforeCount) {
+      this.recordError("validation", "Discard requested for unknown pending change id.");
       new import_obsidian.Notice("Pending change not found.");
       return;
     }
@@ -929,17 +1032,20 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
   async undoLastAppliedChange() {
     const last = this.settings.lastAppliedChange;
     if (!last) {
+      this.recordError("validation", "Undo requested with no last applied change.");
       new import_obsidian.Notice("No applied change to undo.");
       return;
     }
     const target = this.app.vault.getAbstractFileByPath(last.notePath);
     if (!(target instanceof import_obsidian.TFile)) {
+      this.recordError("filesystem", `Undo target missing: ${last.notePath}`);
       new import_obsidian.Notice(`Cannot undo. Note not found: ${last.notePath}`);
       this.settings.lastAppliedChange = null;
       await this.persistAndRender();
       return;
     }
     await this.app.vault.modify(target, last.before);
+    this.clearError();
     this.settings.lastAppliedChange = null;
     await this.persistAndRender();
     new import_obsidian.Notice(`Reverted last applied change in ${last.notePath}`);
@@ -947,6 +1053,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
   async applyNextPendingChange() {
     const first = this.settings.pendingChanges[0];
     if (!first) {
+      this.recordError("validation", "Apply-next invoked with empty pending queue.");
       new import_obsidian.Notice("No pending changes to apply.");
       return;
     }
@@ -960,10 +1067,45 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     }
     await this.refreshAuthStatus("manual");
     if (this.settings.authState !== "logged-in") {
+      this.recordError(categoryFromAuthState(this.settings.authState), `Retry blocked: auth=${this.settings.authState}`);
       new import_obsidian.Notice(`Cannot retry while auth is ${this.settings.authState}.`);
       return;
     }
     await this.sendUserMessage(lastFailed);
+  }
+  buildDiagnosticsSummary() {
+    const d = this.settings.diagnostics;
+    return [
+      "Obsidian Copilot Sidebar Diagnostics",
+      `time=${(/* @__PURE__ */ new Date()).toISOString()}`,
+      `authState=${this.settings.authState}`,
+      `model=${this.settings.model}`,
+      `contextPolicy=${this.settings.contextPolicy}`,
+      `changeApplyPolicy=${this.settings.changeApplyPolicy}`,
+      `firstTokenLatencyMs=${Math.round(d.lastFirstTokenLatencyMs)}`,
+      `responseDurationMs=${Math.round(d.lastResponseDurationMs)}`,
+      `responseTokenCount=${d.lastResponseTokenCount}`,
+      `streamRenderCount=${d.lastStreamRenderCount}`,
+      `lastErrorCategory=${d.lastErrorCategory}`,
+      `lastErrorMessage=${d.lastErrorMessage || "none"}`,
+      `diagnosticsUpdatedAt=${new Date(d.updatedAt).toISOString()}`
+    ].join("\n");
+  }
+  trimSessionMessages(session) {
+    if (session.messages.length <= MAX_MESSAGES_PER_SESSION) {
+      return;
+    }
+    session.messages = session.messages.slice(-MAX_MESSAGES_PER_SESSION);
+  }
+  recordError(category, message) {
+    this.settings.diagnostics.lastErrorCategory = category;
+    this.settings.diagnostics.lastErrorMessage = message;
+    this.settings.diagnostics.updatedAt = Date.now();
+  }
+  clearError() {
+    this.settings.diagnostics.lastErrorCategory = "none";
+    this.settings.diagnostics.lastErrorMessage = "";
+    this.settings.diagnostics.updatedAt = Date.now();
   }
   async sendUserMessage(prompt, providedContext) {
     const trimmed = prompt.trim();
@@ -972,6 +1114,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     }
     if (this.settings.retryFailedPrompt && this.settings.authState !== "logged-in") {
       this.settings.lastFailedPrompt = trimmed;
+      this.recordError(categoryFromAuthState(this.settings.authState), `Prompt queued for retry while auth=${this.settings.authState}`);
     }
     if (this.settings.debugLogging) {
       console.info("[copilot-sidebar] sendUserMessage", {
@@ -988,6 +1131,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       content: trimmed,
       createdAt: Date.now()
     });
+    this.trimSessionMessages(session);
     session.updatedAt = Date.now();
     if (session.title === "New chat session") {
       session.title = trimmed.slice(0, 42);
@@ -1000,21 +1144,45 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       streaming: true
     };
     session.messages.push(assistantMessage);
+    this.trimSessionMessages(session);
     this.streaming = true;
     await this.persistAndRender();
     const context = providedContext ?? await this.getPromptContext();
     const response = this.composeMockResponse(trimmed, context);
     const tokens = response.split(" ");
-    for (const token of tokens) {
+    const streamStartedAt = Date.now();
+    let firstTokenAt = null;
+    let lastRenderAt = 0;
+    let renderCount = 0;
+    for (let index = 0; index < tokens.length; index += 1) {
+      const token = tokens[index];
       assistantMessage.content = assistantMessage.content ? `${assistantMessage.content} ${token}` : token;
-      this.renderViews();
+      if (firstTokenAt === null) {
+        firstTokenAt = Date.now();
+      }
+      const now = Date.now();
+      const isBatchBoundary = (index + 1) % STREAM_RENDER_BATCH_TOKENS === 0;
+      const exceededRenderInterval = now - lastRenderAt >= STREAM_RENDER_INTERVAL_MS;
+      const isFinalToken = index === tokens.length - 1;
+      if (isBatchBoundary || exceededRenderInterval || isFinalToken) {
+        this.renderViews();
+        lastRenderAt = now;
+        renderCount += 1;
+      }
       await this.delay(STREAM_DELAY_MS);
     }
+    const streamFinishedAt = Date.now();
     assistantMessage.streaming = false;
     session.updatedAt = Date.now();
     this.streaming = false;
+    this.settings.diagnostics.lastFirstTokenLatencyMs = firstTokenAt ? firstTokenAt - streamStartedAt : 0;
+    this.settings.diagnostics.lastResponseDurationMs = streamFinishedAt - streamStartedAt;
+    this.settings.diagnostics.lastResponseTokenCount = tokens.length;
+    this.settings.diagnostics.lastStreamRenderCount = renderCount;
+    this.settings.diagnostics.updatedAt = streamFinishedAt;
     if (this.settings.authState === "logged-in") {
       this.settings.lastFailedPrompt = "";
+      this.clearError();
     }
     await this.maybeCreatePendingChange(trimmed, response, context);
     this.syncSelectedPendingChange();

@@ -109,3 +109,12 @@
 | M4-C02 | 쓰기 적용 정책(confirm/auto) 반영 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
 | M4-C03 | 실패 프롬프트 저장/재시도 명령 및 UI 연계 | Copilot CLI | `npm run verify:e2e` |
 | M4-CL01 | M4 변경의 Cloud 검증 실행 | Cloud Agent | `npm run cloud:dispatch` 후 `npm run cloud:status`에서 최신 run 확인 |
+
+## 12) Iteration 7 (M5 Stabilization + Diagnostics) 템플릿
+
+| ID | 목표 | 담당 | 독립 검증 기준 |
+|---|---|---|---|
+| M5-C01 | 스트리밍 렌더 배치 최적화 및 메시지 상한 적용 | Copilot CLI | `npm run check && npm run build` |
+| M5-C02 | 진단 메트릭(첫 토큰 지연/응답 시간/토큰/렌더 횟수) 반영 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
+| M5-C03 | 진단 요약 복사 명령 및 설정 패널 표시 | Copilot CLI | `npm run verify:e2e` |
+| M5-CL01 | M5 변경의 Cloud 검증 실행 | Cloud Agent | `npm run cloud:dispatch` 후 `npm run cloud:status`에서 최신 run 확인 |

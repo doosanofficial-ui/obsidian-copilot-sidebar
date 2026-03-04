@@ -157,6 +157,19 @@
   padding-top: 6px;
 }
 
+.copilot-diagnostics-box {
+  margin: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  padding: 6px;
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .copilot-context-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

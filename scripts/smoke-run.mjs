@@ -214,6 +214,7 @@ try {
   const requiredCommands = [
     "apply-pending-changes",
     "ask-about-current-note",
+    "copy-diagnostics-summary",
     "open-copilot-sidebar",
     "open-sidebar-settings-panel",
     "refresh-auth-status",
@@ -239,6 +240,7 @@ try {
   const openCommand = plugin.__commands.find((command) => command.id === "open-copilot-sidebar");
   const startSessionCommand = plugin.__commands.find((command) => command.id === "start-new-chat-session");
   const applyCommand = plugin.__commands.find((command) => command.id === "apply-pending-changes");
+  const copyDiagnosticsCommand = plugin.__commands.find((command) => command.id === "copy-diagnostics-summary");
   const openSettingsCommand = plugin.__commands.find((command) => command.id === "open-sidebar-settings-panel");
   const refreshAuthCommand = plugin.__commands.find((command) => command.id === "refresh-auth-status");
   const retryFailedPromptCommand = plugin.__commands.find((command) => command.id === "retry-last-failed-prompt");
@@ -247,6 +249,7 @@ try {
   assert.ok(openCommand, "open command should exist");
   assert.ok(startSessionCommand, "start session command should exist");
   assert.ok(applyCommand, "apply command should exist");
+  assert.ok(copyDiagnosticsCommand, "copy diagnostics command should exist");
   assert.ok(openSettingsCommand, "open settings command should exist");
   assert.ok(refreshAuthCommand, "refresh auth command should exist");
   assert.ok(retryFailedPromptCommand, "retry failed prompt command should exist");
@@ -256,6 +259,7 @@ try {
   await openSettingsCommand.callback();
   await startSessionCommand.callback();
   await applyCommand.callback();
+  await copyDiagnosticsCommand.callback();
   await refreshAuthCommand.callback();
   await retryFailedPromptCommand.callback();
   await undoCommand.callback();

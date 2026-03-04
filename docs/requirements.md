@@ -60,6 +60,7 @@
 - `Refresh auth status`
 - `Open sidebar settings panel`
 - `Retry last failed prompt`
+- `Copy diagnostics summary`
 
 ### FR-006 세션/설정 저장
 
@@ -92,6 +93,7 @@
 
 - 디버그 로그 레벨 제어
 - 사용자에게 실패 원인 카테고리 표시
+- 사용자가 진단 요약(성능/오류 상태)을 복사해 공유할 수 있어야 한다.
 
 ## 7. 수용 기준 (Acceptance Criteria)
 
