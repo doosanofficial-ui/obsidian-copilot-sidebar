@@ -36,6 +36,19 @@ interface PendingChange {
   createdAt: number;
 }
 
+interface CommandExecResult {
+  status: number;
+  stdout: string;
+  stderr: string;
+  error: string | null;
+}
+
+interface AuthProbeResult {
+  state: AuthState;
+  detail: string;
+  checkedAt: number;
+}
+
 interface AppliedChangeRecord {
   id: string;
   notePath: string;
@@ -57,6 +70,8 @@ interface CopilotSidebarSettings {
   additionalContextPaths: string[];
   lastAppliedChange: AppliedChangeRecord | null;
   authState: AuthState;
+  authDetail: string;
+  authCheckedAt: number;
   model: string;
   contextPolicy: ContextPolicy;
   debugLogging: boolean;
@@ -77,6 +92,8 @@ interface SidebarSnapshot {
   additionalContextPaths: string[];
   lastAppliedChange: AppliedChangeRecord | null;
   authState: AuthState;
+  authDetail: string;
+  authCheckedAt: number;
   model: string;
   isStreaming: boolean;
 }
@@ -84,6 +101,7 @@ interface SidebarSnapshot {
 interface ViewElements {
   title: HTMLElement;
   authBadge: HTMLElement;
+  authMeta: HTMLElement;
   sessionList: HTMLElement;
   contextList: HTMLElement;
   pendingList: HTMLElement;
@@ -119,6 +137,8 @@ function defaultSettings(): CopilotSidebarSettings {
     additionalContextPaths: [],
     lastAppliedChange: null,
     authState: "logged-in",
+    authDetail: "Auth not checked yet.",
+    authCheckedAt: Date.now(),
     model: "gpt-5.3-codex",
     contextPolicy: "selection-first",
     debugLogging: false
@@ -200,6 +220,16 @@ function buildPreviewDiff(before: string, after: string): string {
   return out.join("\n");
 }
 
+function compactOutput(stdout: string, stderr: string): string {
+  const joined = `${stdout}\n${stderr}`.replace(/\s+/g, " ").trim();
+  return joined.length > 0 ? joined : "(no output)";
+}
+
+function containsAny(source: string, patterns: string[]): boolean {
+  const lowered = source.toLowerCase();
+  return patterns.some((pattern) => lowered.includes(pattern));
+}
+
 function normalizeSettings(raw: unknown): CopilotSidebarSettings {
   const fallback = defaultSettings();
   if (!raw || typeof raw !== "object") {
@@ -268,6 +298,10 @@ function normalizeSettings(raw: unknown): CopilotSidebarSettings {
     additionalContextPaths,
     lastAppliedChange,
     authState: isAuthState(source.authState) ? source.authState : fallback.authState,
+    authDetail: typeof source.authDetail === "string" && source.authDetail.trim().length > 0
+      ? source.authDetail
+      : fallback.authDetail,
+    authCheckedAt: typeof source.authCheckedAt === "number" ? source.authCheckedAt : fallback.authCheckedAt,
     model: typeof source.model === "string" && source.model.trim().length > 0 ? source.model : fallback.model,
     contextPolicy: isContextPolicy(source.contextPolicy) ? source.contextPolicy : fallback.contextPolicy,
     debugLogging: Boolean(source.debugLogging)
@@ -296,7 +330,9 @@ class CopilotSidebarView extends ItemView {
     const root = container.createDiv({ cls: "copilot-sidebar-root" });
     const header = root.createDiv({ cls: "copilot-sidebar-header" });
     const title = header.createDiv({ text: "Copilot Sidebar", cls: "copilot-sidebar-title" });
-    const authBadge = header.createDiv({ cls: "copilot-auth-badge" });
+    const authMeta = header.createDiv({ cls: "copilot-auth-meta" });
+    const authBadge = authMeta.createDiv({ cls: "copilot-auth-badge" });
+    const authDetail = authMeta.createDiv({ cls: "copilot-auth-detail" });
 
     const controlRow = root.createDiv({ cls: "copilot-sidebar-controls" });
     const newSessionButton = controlRow.createEl("button", {
@@ -315,8 +351,8 @@ class CopilotSidebarView extends ItemView {
       text: "Add Active Context",
       cls: "copilot-button"
     }) as HTMLButtonElement;
-    const authCycleButton = controlRow.createEl("button", {
-      text: "Cycle Auth",
+    const refreshAuthButton = controlRow.createEl("button", {
+      text: "Refresh Auth",
       cls: "copilot-button"
     }) as HTMLButtonElement;
 
@@ -360,8 +396,8 @@ class CopilotSidebarView extends ItemView {
       void this.plugin.addActiveNoteToContext();
     });
 
-    authCycleButton.addEventListener("click", () => {
-      void this.plugin.cycleAuthState();
+    refreshAuthButton.addEventListener("click", () => {
+      void this.plugin.refreshAuthStatus("manual");
     });
 
     composerButton.addEventListener("click", () => {
@@ -378,6 +414,7 @@ class CopilotSidebarView extends ItemView {
     this.elements = {
       title,
       authBadge,
+      authMeta: authDetail,
       sessionList,
       contextList,
       pendingList,
@@ -406,6 +443,11 @@ class CopilotSidebarView extends ItemView {
     this.elements.title.setText(activeSession ? activeSession.title : "Copilot Sidebar");
     this.elements.authBadge.setText(`Auth: ${snapshot.authState}`);
     this.elements.authBadge.className = `copilot-auth-badge auth-${snapshot.authState}`;
+    const checkedAt = new Date(snapshot.authCheckedAt).toLocaleTimeString();
+    const compactDetail = snapshot.authDetail.length > 180
+      ? `${snapshot.authDetail.slice(0, 177)}...`
+      : snapshot.authDetail;
+    this.elements.authMeta.setText(`${compactDetail} | checked ${checkedAt}`);
 
     this.renderSessions(snapshot);
     this.renderContextNotes(snapshot);
@@ -417,7 +459,7 @@ class CopilotSidebarView extends ItemView {
     this.elements.composerInput.disabled = snapshot.isStreaming;
     this.elements.composerInput.placeholder = snapshot.authState === "logged-in"
       ? "Ask Copilot about this vault..."
-      : "Auth state is not logged-in. Use Cycle Auth (mock) to simulate recovery.";
+      : "Auth state is not logged-in. Use Refresh Auth to re-check login and entitlement.";
   }
 
   private renderSessions(snapshot: SidebarSnapshot): void {
@@ -672,6 +714,16 @@ export default class CopilotSidebarPlugin extends Plugin {
         await this.undoLastAppliedChange();
       }
     });
+
+    this.addCommand({
+      id: "refresh-auth-status",
+      name: "Refresh auth status",
+      callback: async () => {
+        await this.refreshAuthStatus("manual");
+      }
+    });
+
+    void this.refreshAuthStatus("startup");
   }
 
   async onunload(): Promise<void> {
@@ -707,6 +759,8 @@ export default class CopilotSidebarPlugin extends Plugin {
       additionalContextPaths: [...this.settings.additionalContextPaths],
       lastAppliedChange: this.settings.lastAppliedChange ? { ...this.settings.lastAppliedChange } : null,
       authState: this.settings.authState,
+      authDetail: this.settings.authDetail,
+      authCheckedAt: this.settings.authCheckedAt,
       model: this.settings.model,
       isStreaming: this.streaming
     };
@@ -752,7 +806,150 @@ export default class CopilotSidebarPlugin extends Plugin {
     const currentIndex = AUTH_ORDER.indexOf(this.settings.authState);
     const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % AUTH_ORDER.length : 0;
     this.settings.authState = AUTH_ORDER[nextIndex];
+    this.settings.authDetail = "Manual auth state override.";
+    this.settings.authCheckedAt = Date.now();
     await this.persistAndRender();
+  }
+
+  async refreshAuthStatus(trigger: "startup" | "manual" = "manual"): Promise<void> {
+    const probe = this.probeAuthStatusFromGh();
+    this.settings.authState = probe.state;
+    this.settings.authDetail = probe.detail;
+    this.settings.authCheckedAt = probe.checkedAt;
+    await this.persistAndRender();
+
+    if (trigger === "manual") {
+      new Notice(`Auth check: ${probe.state}`);
+    }
+  }
+
+  private probeAuthStatusFromGh(): AuthProbeResult {
+    const checkedAt = Date.now();
+
+    const ghVersion = this.runLocalCommand("gh", ["--version"], 2500);
+    if (ghVersion.status !== 0) {
+      return {
+        state: "offline",
+        detail: "gh CLI not found. Install/authenticate GitHub CLI.",
+        checkedAt
+      };
+    }
+
+    const authStatus = this.runLocalCommand("gh", ["auth", "status", "-h", "github.com"], 6000);
+    const authOutput = compactOutput(authStatus.stdout, authStatus.stderr);
+
+    if (authStatus.status !== 0) {
+      if (containsAny(authOutput, ["expired", "token", "not logged", "authentication"])) {
+        return {
+          state: "token-expired",
+          detail: `GitHub auth issue: ${authOutput}`,
+          checkedAt
+        };
+      }
+
+      return {
+        state: "offline",
+        detail: `Unable to reach GitHub auth status: ${authOutput}`,
+        checkedAt
+      };
+    }
+
+    const copilotStatus = this.runLocalCommand("gh", ["copilot", "status"], 6000);
+    const copilotOutput = compactOutput(copilotStatus.stdout, copilotStatus.stderr);
+
+    if (copilotStatus.status === 0) {
+      return {
+        state: "logged-in",
+        detail: `GitHub login and Copilot status confirmed. ${copilotOutput}`,
+        checkedAt
+      };
+    }
+
+    if (containsAny(copilotOutput, ["not entitled", "not enabled", "no entitlement", "not subscribed"])) {
+      return {
+        state: "no-entitlement",
+        detail: `GitHub login ok but Copilot entitlement missing. ${copilotOutput}`,
+        checkedAt
+      };
+    }
+
+    if (containsAny(copilotOutput, ["token", "authentication", "not logged", "login"])) {
+      return {
+        state: "token-expired",
+        detail: `Copilot auth needs refresh. ${copilotOutput}`,
+        checkedAt
+      };
+    }
+
+    if (containsAny(copilotOutput, ["unknown command", "usage:"])) {
+      return {
+        state: "logged-in",
+        detail: "GitHub login detected. Copilot status command unavailable in this gh build.",
+        checkedAt
+      };
+    }
+
+    return {
+      state: "logged-in",
+      detail: `GitHub login detected. Copilot status inconclusive: ${copilotOutput}`,
+      checkedAt
+    };
+  }
+
+  private runLocalCommand(command: string, args: string[], timeoutMs: number): CommandExecResult {
+    const dynamicRequire = this.getDynamicRequire();
+    if (!dynamicRequire) {
+      return {
+        status: -1,
+        stdout: "",
+        stderr: "dynamic require is unavailable in this runtime",
+        error: "require-unavailable"
+      };
+    }
+
+    try {
+      const childProcess = dynamicRequire("node:child_process") as {
+        spawnSync: (
+          cmd: string,
+          cmdArgs: string[],
+          options: { encoding: "utf8"; timeout: number }
+        ) => { status: number | null; stdout?: string; stderr?: string; error?: unknown };
+      };
+
+      const result = childProcess.spawnSync(command, args, {
+        encoding: "utf8",
+        timeout: timeoutMs
+      });
+
+      const error = result.error instanceof Error ? result.error.message : null;
+      return {
+        status: result.status ?? -1,
+        stdout: typeof result.stdout === "string" ? result.stdout : "",
+        stderr: typeof result.stderr === "string" ? result.stderr : "",
+        error
+      };
+    } catch (error) {
+      return {
+        status: -1,
+        stdout: "",
+        stderr: "",
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+
+  private getDynamicRequire(): ((moduleId: string) => unknown) | null {
+    const fromGlobal = (globalThis as { require?: ((moduleId: string) => unknown) }).require;
+    if (typeof fromGlobal === "function") {
+      return fromGlobal;
+    }
+
+    const fromWindow = (globalThis as { window?: { require?: ((moduleId: string) => unknown) } }).window?.require;
+    if (typeof fromWindow === "function") {
+      return fromWindow;
+    }
+
+    return null;
   }
 
   async addActiveNoteToContext(): Promise<void> {

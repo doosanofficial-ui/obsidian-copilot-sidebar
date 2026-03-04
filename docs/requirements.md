@@ -35,6 +35,8 @@
 - GitHub 로그인(디바이스 플로우 또는 SDK 권장 플로우)
 - Copilot entitlement 확인
 - 로그인 상태 표시: `로그인됨`, `권한 없음`, `토큰 만료`, `오프라인`
+- Desktop 환경에서 `gh auth status`/`gh copilot status` 기반 상태 probe를 지원한다.
+- 사용자가 사이드바/명령 팔레트에서 인증 상태를 수동 재검증할 수 있어야 한다.
 
 ### FR-003 컨텍스트 주입
 
@@ -54,6 +56,8 @@
 - `Ask about current note`
 - `Apply pending changes`
 - `Start new chat session`
+- `Undo last applied change`
+- `Refresh auth status`
 
 ### FR-006 세션/설정 저장
 
