@@ -118,3 +118,12 @@
 | M5-C02 | 진단 메트릭(첫 토큰 지연/응답 시간/토큰/렌더 횟수) 반영 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
 | M5-C03 | 진단 요약 복사 명령 및 설정 패널 표시 | Copilot CLI | `npm run verify:e2e` |
 | M5-CL01 | M5 변경의 Cloud 검증 실행 | Cloud Agent | `npm run cloud:dispatch` 후 `npm run cloud:status`에서 최신 run 확인 |
+
+## 13) Iteration 8 (M5 Beta Feedback Loop) 템플릿
+
+| ID | 목표 | 담당 | 독립 검증 기준 |
+|---|---|---|---|
+| M5B-C01 | 베타 피드백 노트 생성 명령/버튼 추가 | Copilot CLI | `npm run check && npm run build` |
+| M5B-C02 | 피드백 노트에 진단/최근 대화 자동 첨부 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
+| M5B-C03 | 마지막 피드백 노트 경로 표시 및 오류 복구 반영 | Copilot CLI | `npm run verify:e2e` |
+| M5B-CL01 | M5B 변경의 Cloud 검증 실행 | Cloud Agent | `npm run cloud:dispatch` 후 `npm run cloud:status`에서 최신 run 확인 |

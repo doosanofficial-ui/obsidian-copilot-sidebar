@@ -61,6 +61,7 @@
 - `Open sidebar settings panel`
 - `Retry last failed prompt`
 - `Copy diagnostics summary`
+- `Capture beta feedback note`
 
 ### FR-006 세션/설정 저장
 
@@ -73,6 +74,7 @@
 - 네트워크/인증/권한 오류를 사용자 친화 메시지로 표기
 - 재시도, 재인증 경로 제공
 - 인증 실패 상태에서 실패 프롬프트를 저장하고 재시도 명령으로 복구할 수 있어야 한다.
+- 사용자가 진단/최근 대화 맥락을 포함한 베타 피드백 노트를 생성할 수 있어야 한다.
 
 ## 6. 비기능 요구사항
 

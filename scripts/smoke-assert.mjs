@@ -20,6 +20,7 @@ assert.equal(runReport.pass, true, "smoke:run must pass");
 const requiredCommands = [
   "apply-pending-changes",
   "ask-about-current-note",
+  "capture-beta-feedback-note",
   "copy-diagnostics-summary",
   "open-copilot-sidebar",
   "open-sidebar-settings-panel",

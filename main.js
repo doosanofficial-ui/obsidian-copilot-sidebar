@@ -33,6 +33,7 @@ var STREAM_DELAY_MS = 30;
 var STREAM_RENDER_INTERVAL_MS = 90;
 var STREAM_RENDER_BATCH_TOKENS = 6;
 var PREVIEW_MAX_LINES = 120;
+var BETA_FEEDBACK_FOLDER = "Copilot Sidebar Feedback";
 var RECOMMENDED_MODELS = ["gpt-5.3-codex", "gpt-4.1", "gpt-4o-mini"];
 var AUTH_ORDER = ["logged-in", "no-entitlement", "token-expired", "offline"];
 function createId(prefix) {
@@ -64,6 +65,7 @@ function defaultSettings() {
     changeApplyPolicy: "confirm-write",
     retryFailedPrompt: true,
     lastFailedPrompt: "",
+    lastFeedbackNotePath: "",
     diagnostics: defaultDiagnostics(),
     debugLogging: false
   };
@@ -238,6 +240,7 @@ function normalizeSettings(raw) {
     changeApplyPolicy: isChangeApplyPolicy(source.changeApplyPolicy) ? source.changeApplyPolicy : fallback.changeApplyPolicy,
     retryFailedPrompt: typeof source.retryFailedPrompt === "boolean" ? source.retryFailedPrompt : fallback.retryFailedPrompt,
     lastFailedPrompt: typeof source.lastFailedPrompt === "string" ? source.lastFailedPrompt : fallback.lastFailedPrompt,
+    lastFeedbackNotePath: typeof source.lastFeedbackNotePath === "string" ? source.lastFeedbackNotePath : fallback.lastFeedbackNotePath,
     diagnostics,
     debugLogging: Boolean(source.debugLogging)
   };
@@ -292,6 +295,10 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
       text: "Copy Diagnostics",
       cls: "copilot-button"
     });
+    const captureFeedbackButton = controlRow.createEl("button", {
+      text: "Capture Feedback",
+      cls: "copilot-button"
+    });
     const layout = root.createDiv({ cls: "copilot-sidebar-layout" });
     const leftPane = layout.createDiv({ cls: "copilot-sidebar-pane copilot-sidebar-pane-sessions" });
     leftPane.createDiv({ text: "Sessions", cls: "copilot-pane-title" });
@@ -334,6 +341,9 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     });
     copyDiagnosticsButton.addEventListener("click", () => {
       void this.plugin.copyDiagnosticsSummary();
+    });
+    captureFeedbackButton.addEventListener("click", () => {
+      void this.plugin.captureBetaFeedbackNote();
     });
     composerButton.addEventListener("click", () => {
       void this.submitComposer();
@@ -484,6 +494,8 @@ var CopilotSidebarView = class extends import_obsidian.ItemView {
     const failedPrompt = snapshot.lastFailedPrompt.trim();
     const failedText = failedPrompt.length > 0 ? failedPrompt.slice(0, 120) : "None";
     panel.createDiv({ text: `Last failed prompt: ${failedText}`, cls: "copilot-setting-hint" });
+    const feedbackPath = snapshot.lastFeedbackNotePath.trim().length > 0 ? snapshot.lastFeedbackNotePath : "None";
+    panel.createDiv({ text: `Last feedback note: ${feedbackPath}`, cls: "copilot-setting-hint" });
     const diagnostics = snapshot.diagnostics;
     const diagnosticsLines = [
       `First token: ${formatDurationMs(diagnostics.lastFirstTokenLatencyMs)}`,
@@ -707,6 +719,13 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       }
     });
     this.addCommand({
+      id: "capture-beta-feedback-note",
+      name: "Capture beta feedback note",
+      callback: async () => {
+        await this.captureBetaFeedbackNote();
+      }
+    });
+    this.addCommand({
       id: "refresh-auth-status",
       name: "Refresh auth status",
       callback: async () => {
@@ -748,6 +767,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       changeApplyPolicy: this.settings.changeApplyPolicy,
       retryFailedPrompt: this.settings.retryFailedPrompt,
       lastFailedPrompt: this.settings.lastFailedPrompt,
+      lastFeedbackNotePath: this.settings.lastFeedbackNotePath,
       diagnostics: { ...this.settings.diagnostics },
       debugLogging: this.settings.debugLogging,
       isStreaming: this.streaming
@@ -802,6 +822,42 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     console.info("[copilot-sidebar] diagnostics-summary\n" + summary);
     new import_obsidian.Notice("Diagnostics summary ready in console (clipboard unavailable).");
     await this.persistAndRender();
+  }
+  async captureBetaFeedbackNote() {
+    const existingFolder = this.app.vault.getAbstractFileByPath(BETA_FEEDBACK_FOLDER);
+    if (existingFolder instanceof import_obsidian.TFile) {
+      this.recordError("filesystem", `${BETA_FEEDBACK_FOLDER} exists as a file, not a folder.`);
+      new import_obsidian.Notice("Cannot capture feedback: target folder path is already a file.");
+      await this.persistAndRender();
+      return;
+    }
+    if (!existingFolder) {
+      try {
+        await this.app.vault.createFolder(BETA_FEEDBACK_FOLDER);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!containsAny(message, ["already exists"])) {
+          this.recordError("filesystem", `Failed to create feedback folder: ${message}`);
+          new import_obsidian.Notice("Cannot capture feedback note. Failed to create folder.");
+          await this.persistAndRender();
+          return;
+        }
+      }
+    }
+    const feedbackPath = `${BETA_FEEDBACK_FOLDER}/${this.createFeedbackFileName()}`;
+    const content = this.buildBetaFeedbackNoteContent();
+    try {
+      const createdFile = await this.app.vault.create(feedbackPath, content);
+      this.settings.lastFeedbackNotePath = createdFile.path;
+      this.clearError();
+      await this.persistAndRender();
+      new import_obsidian.Notice(`Beta feedback note created: ${createdFile.path}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.recordError("filesystem", `Failed to create feedback note: ${message}`);
+      new import_obsidian.Notice("Cannot capture feedback note. See diagnostics for details.");
+      await this.persistAndRender();
+    }
   }
   async startNewSession() {
     const session = createSession();
@@ -1100,6 +1156,49 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       `lastErrorCategory=${d.lastErrorCategory}`,
       `lastErrorMessage=${d.lastErrorMessage || "none"}`,
       `diagnosticsUpdatedAt=${new Date(d.updatedAt).toISOString()}`
+    ].join("\n");
+  }
+  createFeedbackFileName() {
+    const now = /* @__PURE__ */ new Date();
+    const yyyy = String(now.getFullYear());
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const hh = String(now.getHours()).padStart(2, "0");
+    const min = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    const ms = String(now.getMilliseconds()).padStart(3, "0");
+    return `feedback-${yyyy}${mm}${dd}-${hh}${min}${ss}-${ms}.md`;
+  }
+  buildBetaFeedbackNoteContent() {
+    const session = this.ensureActiveSession();
+    const activePath = this.app.workspace.getActiveFile()?.path ?? "<none>";
+    const recentMessages = session.messages.slice(-6).map((message) => `- ${message.role}: ${message.content.slice(0, 200)}`).join("\n");
+    return [
+      "# Copilot Sidebar Beta Feedback",
+      "",
+      `- Captured at: ${(/* @__PURE__ */ new Date()).toISOString()}`,
+      `- Active note: ${activePath}`,
+      `- Session: ${session.title} (${session.id})`,
+      `- Session message count: ${session.messages.length}`,
+      `- Pending changes: ${this.settings.pendingChanges.length}`,
+      "",
+      "## Feedback",
+      "- What did you try?",
+      "- What worked well?",
+      "- What felt confusing or slow?",
+      "- What outcome did you expect?",
+      "",
+      "## Recent Chat Context",
+      recentMessages.length > 0 ? recentMessages : "- <no recent messages>",
+      "",
+      "## Diagnostics",
+      "```text",
+      this.buildDiagnosticsSummary(),
+      "```",
+      "",
+      "## Notes",
+      "- Add screenshots/log snippets if needed.",
+      "- Include reproduction steps for non-deterministic issues."
     ].join("\n");
   }
   trimSessionMessages(session) {
