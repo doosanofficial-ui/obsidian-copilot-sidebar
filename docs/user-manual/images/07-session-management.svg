@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 420" width="600" height="420">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ff6b6b"/>
+    </marker>
+  </defs>
+  <rect width="600" height="420" fill="#1e1e2e" rx="12"/>
+  <text x="30" y="35" font-family="system-ui,sans-serif" font-size="15" fill="#e0e0f0" text-anchor="start" font-weight="700">세션 관리</text>
+
+  <!-- Session panel -->
+  <rect x="20" y="55" width="280" height="220" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="35" y="80" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="700">SESSIONS</text>
+
+  <!-- Active session -->
+  <rect x="30" y="90" width="260" height="38" rx="6" fill="rgba(122,162,247,0.14)" stroke="#7aa2f7" stroke-width="1"/>
+  <rect x="40" y="96" width="170" height="26" rx="6" fill="rgba(122,162,247,0.14)" stroke="#44445a" stroke-width="1"/><text x="125" y="113" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Session 1</text>
+  <rect x="218" y="96" width="60" height="26" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="248" y="113" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Delete</text>
+
+  <!-- Session 2 -->
+  <rect x="30" y="135" width="260" height="38" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <rect x="40" y="141" width="170" height="26" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="125" y="158" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Session 2</text>
+  <rect x="218" y="141" width="60" height="26" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="248" y="158" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Delete</text>
+
+  <!-- Session 3 -->
+  <rect x="30" y="180" width="260" height="38" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <rect x="40" y="186" width="170" height="26" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="125" y="203" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Session 3</text>
+  <rect x="218" y="186" width="60" height="26" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="248" y="203" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Delete</text>
+
+  <!-- New Session button -->
+  <rect x="30" y="230" width="120" height="30" rx="6" fill="#7aa2f7" stroke="#44445a" stroke-width="1"/><text x="90" y="249" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">New Session</text>
+
+  <!-- Annotations on right side -->
+  <rect x="320" y="55" width="260" height="355" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="335" y="80" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="start" font-weight="700">세션 관리 방법</text>
+
+  <circle cx="335" cy="110" r="14" fill="#ff6b6b"/><text x="335" y="115" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">1</text>
+  <text x="360" y="115" font-family="system-ui,sans-serif" font-size="12" fill="#7aa2f7" text-anchor="start" font-weight="600">새 세션 만들기</text>
+  <text x="340" y="135" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">"New Session" 버튼 클릭</text>
+  <text x="340" y="150" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">최대 20개 세션 관리 가능</text>
+
+  <circle cx="335" cy="180" r="14" fill="#ff6b6b"/><text x="335" y="185" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">2</text>
+  <text x="360" y="185" font-family="system-ui,sans-serif" font-size="12" fill="#7aa2f7" text-anchor="start" font-weight="600">세션 전환</text>
+  <text x="340" y="205" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">세션 이름 버튼을 클릭하면</text>
+  <text x="340" y="220" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">해당 세션으로 전환됩니다</text>
+  <text x="340" y="235" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">활성 세션은 파란 테두리 표시</text>
+
+  <circle cx="335" cy="260" r="14" fill="#ff6b6b"/><text x="335" y="265" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">3</text>
+  <text x="360" y="265" font-family="system-ui,sans-serif" font-size="12" fill="#7aa2f7" text-anchor="start" font-weight="600">세션 삭제</text>
+  <text x="340" y="285" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">"Delete" 버튼으로 세션 삭제</text>
+  <text x="340" y="300" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">⚠ 최소 1개 세션은 유지해야 함</text>
+  <text x="340" y="315" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">(마지막 세션의 Delete는</text>
+  <text x="340" y="330" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal"> 비활성화 됩니다)</text>
+
+  <line x1="152" y1="238" x2="330" y2="120" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <circle cx="109" cy="109" r="145" fill="none" stroke="#ff6b6b" stroke-width="2.5" stroke-dasharray="4,3"/>
+</svg>

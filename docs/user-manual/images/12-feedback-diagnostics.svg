@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 400" width="700" height="400">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ff6b6b"/>
+    </marker>
+  </defs>
+  <rect width="700" height="400" fill="#1e1e2e" rx="12"/>
+  <text x="30" y="35" font-family="system-ui,sans-serif" font-size="15" fill="#e0e0f0" text-anchor="start" font-weight="700">진단 정보 복사 & 피드백 캡처</text>
+
+  <!-- Copy Diagnostics flow -->
+  <rect x="20" y="60" width="320" height="150" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="35" y="85" font-family="system-ui,sans-serif" font-size="13" fill="#7aa2f7" text-anchor="start" font-weight="700">진단 정보 복사</text>
+  
+  <circle cx="40" cy="115" r="14" fill="#ff6b6b"/><text x="40" y="120" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">1</text>
+  <text x="65" y="120" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">"Copy Diagnostics" 버튼 클릭</text>
+  
+  <circle cx="40" cy="150" r="14" fill="#ff6b6b"/><text x="40" y="155" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">2</text>
+  <text x="65" y="155" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">클립보드에 진단 요약 복사됨</text>
+  
+  <text x="35" y="185" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">📋 복사된 내용:</text>
+  <text x="35" y="200" font-family="system-ui,sans-serif" font-size="9" fill="#888899" text-anchor="start" font-weight="normal">firstTokenLatency/duration/tokens/errors</text>
+
+  <!-- Capture Feedback flow -->
+  <rect x="360" y="60" width="320" height="150" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="375" y="85" font-family="system-ui,sans-serif" font-size="13" fill="#7aa2f7" text-anchor="start" font-weight="700">베타 피드백 캡처</text>
+  
+  <circle cx="380" cy="115" r="14" fill="#ff6b6b"/><text x="380" y="120" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">1</text>
+  <text x="405" y="120" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">"Capture Feedback" 버튼 클릭</text>
+  
+  <circle cx="380" cy="150" r="14" fill="#ff6b6b"/><text x="380" y="155" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="middle" font-weight="700">2</text>
+  <text x="405" y="155" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">피드백 노트가 자동 생성됨</text>
+  
+  <text x="375" y="185" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">📁 저장 위치:</text>
+  <text x="375" y="200" font-family="system-ui,sans-serif" font-size="9" fill="#888899" text-anchor="start" font-weight="normal">Copilot Sidebar Feedback/feedback-*.md</text>
+
+  <!-- Generated note preview -->
+  <rect x="20" y="225" width="660" height="160" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="35" y="250" font-family="system-ui,sans-serif" font-size="13" fill="#e0e0f0" text-anchor="start" font-weight="700">생성된 피드백 노트 예시</text>
+  <rect x="30" y="260" width="640" height="110" rx="6" fill="#1e1e2e" stroke="#44445a" stroke-width="1"/>
+  <text x="42" y="280" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal"># Copilot Sidebar Beta Feedback</text>
+  <text x="42" y="298" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">## Diagnostics Snapshot</text>
+  <text x="42" y="313" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">- firstTokenLatency: 245ms</text>
+  <text x="42" y="328" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">- responseDuration: 1230ms</text>
+  <text x="42" y="343" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">## Recent Chat Excerpts</text>
+  <text x="42" y="358" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="normal">- USER: 이 노트의 주요 내용을 요약해줘...</text>
+</svg>

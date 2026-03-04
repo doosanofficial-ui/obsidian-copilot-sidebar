@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 620" width="800" height="620">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ff6b6b"/>
+    </marker>
+  </defs>
+  <rect width="800" height="620" fill="#1e1e2e" rx="12"/>
+  <!-- Header -->
+  <rect x="20" y="15" width="760" height="40" rx="8" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="35" y="41" font-family="system-ui,sans-serif" font-size="14" fill="#e0e0f0" text-anchor="start" font-weight="700">Copilot Sidebar</text>
+  <rect x="620" y="23" width="106" height="20" rx="10" fill="rgba(100,200,100,0.25)" stroke="none"/><text x="673" y="37" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="middle" font-weight="600">Auth: logged-in</text>
+
+  <!-- Control buttons bar (3 x 3 grid) -->
+  <rect x="20" y="65" width="760" height="80" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <rect x="30" y="75" width="140" height="28" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="100" y="93" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">New Session</text>
+  <rect x="178" y="75" width="140" height="28" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="248" y="93" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Ask Current Note</text>
+  <rect x="326" y="75" width="140" height="28" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="396" y="93" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Apply Pending</text>
+  <rect x="30" y="108" width="140" height="28" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="100" y="126" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Add Active Context</text>
+  <rect x="178" y="108" width="140" height="28" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="248" y="126" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Refresh Auth</text>
+  <rect x="326" y="108" width="140" height="28" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="396" y="126" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Retry Failed</text>
+  <rect x="474" y="75" width="140" height="28" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="544" y="93" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Copy Diagnostics</text>
+  <rect x="474" y="108" width="140" height="28" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="544" y="126" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Capture Feedback</text>
+
+  <!-- Left pane -->
+  <rect x="20" y="155" width="250" height="445" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="35" y="180" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="700">SESSIONS</text>
+  <rect x="30" y="188" width="230" height="32" rx="6" fill="rgba(122,162,247,0.14)" stroke="#7aa2f7" stroke-width="1"/>
+  <text x="42" y="208" font-family="system-ui,sans-serif" font-size="11" fill="#7aa2f7" text-anchor="start" font-weight="normal">Session 1 (active)</text>
+  <rect x="30" y="225" width="230" height="32" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="42" y="245" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="start" font-weight="normal">Session 2</text>
+
+  <text x="35" y="280" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="700">SETTINGS</text>
+  <rect x="30" y="288" width="230" height="100" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="42" y="308" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="start" font-weight="normal">Model: gpt-5.3-codex</text>
+  <text x="42" y="325" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="start" font-weight="normal">Context: Selection First</text>
+  <text x="42" y="342" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="start" font-weight="normal">Write: Confirm Before Apply</text>
+  <text x="42" y="359" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="start" font-weight="normal">Debug: off</text>
+  <text x="42" y="376" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="start" font-weight="normal">Retry: on</text>
+
+  <text x="35" y="410" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="700">CONTEXT NOTES</text>
+  <rect x="30" y="418" width="230" height="28" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="42" y="437" font-family="system-ui,sans-serif" font-size="10" fill="#c0caf5" text-anchor="start" font-weight="normal">notes/example.md</text>
+  <rect x="210" y="421" width="42" height="22" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="231" y="436" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">✕</text>
+
+  <text x="35" y="470" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="700">PENDING CHANGES</text>
+  <rect x="30" y="478" width="230" height="55" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="42" y="498" font-family="system-ui,sans-serif" font-size="11" fill="#e0e0f0" text-anchor="start" font-weight="600">Create: new-file.md</text>
+  <rect x="35" y="510" width="60" height="20" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="65" y="524" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Preview</text>
+  <rect x="100" y="510" width="52" height="20" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="126" y="524" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Apply</text>
+  <rect x="157" y="510" width="60" height="20" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="187" y="524" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Discard</text>
+
+  <!-- Right pane (chat) -->
+  <rect x="280" y="155" width="500" height="445" rx="8" fill="#282838" stroke="#44445a" stroke-width="1"/>
+  <text x="300" y="180" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="700">MESSAGES</text>
+
+  <!-- user message -->
+  <rect x="290" y="190" width="480" height="55" rx="8" fill="rgba(122,162,247,0.14)" stroke="#44445a" stroke-width="1"/>
+  <text x="302" y="210" font-family="system-ui,sans-serif" font-size="9" fill="#888899" text-anchor="start" font-weight="600">USER</text>
+  <text x="302" y="228" font-family="system-ui,sans-serif" font-size="12" fill="#c0caf5" text-anchor="start" font-weight="normal">이 노트의 주요 내용을 요약해줘</text>
+
+  <!-- assistant message -->
+  <rect x="290" y="255" width="480" height="70" rx="8" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="302" y="275" font-family="system-ui,sans-serif" font-size="9" fill="#888899" text-anchor="start" font-weight="600">ASSISTANT</text>
+  <text x="302" y="293" font-family="system-ui,sans-serif" font-size="12" fill="#c0caf5" text-anchor="start" font-weight="normal">이 노트는 프로젝트 요구사항을 정리한 문서입니다.</text>
+  <text x="302" y="310" font-family="system-ui,sans-serif" font-size="12" fill="#c0caf5" text-anchor="start" font-weight="normal">주요 내용은 다음과 같습니다...</text>
+
+  <!-- Preview panel -->
+  <rect x="290" y="340" width="480" height="130" rx="8" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="302" y="362" font-family="system-ui,sans-serif" font-size="10" fill="#888899" text-anchor="start" font-weight="700">CHANGE PREVIEW</text>
+  <text x="302" y="382" font-family="system-ui,sans-serif" font-size="12" fill="#e0e0f0" text-anchor="start" font-weight="600">Create: new-file.md</text>
+  <rect x="300" y="392" width="460" height="40" rx="6" fill="#1e1e2e" stroke="#44445a" stroke-width="1"/>
+  <text x="312" y="412" font-family="system-ui,sans-serif" font-size="10" fill="rgba(100,200,100,0.25)" text-anchor="start" font-weight="normal">+ # New File</text>
+  <text x="312" y="424" font-family="system-ui,sans-serif" font-size="10" fill="rgba(100,200,100,0.25)" text-anchor="start" font-weight="normal">+ This is the new content...</text>
+  <rect x="300" y="438" width="110" height="22" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="355" y="453" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Apply Previewed</text>
+  <rect x="415" y="438" width="110" height="22" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="470" y="453" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Discard Previewed</text>
+  <rect x="530" y="438" width="100" height="22" rx="6" fill="#313143" stroke="#44445a" stroke-width="1"/><text x="580" y="453" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Undo Last</text>
+
+  <!-- Composer -->
+  <rect x="290" y="480" width="390" height="50" rx="8" fill="#313143" stroke="#44445a" stroke-width="1"/>
+  <text x="305" y="510" font-family="system-ui,sans-serif" font-size="11" fill="#888899" text-anchor="start" font-weight="normal">Ask Copilot about this vault...</text>
+  <rect x="690" y="490" width="70" height="30" rx="6" fill="#7aa2f7" stroke="#44445a" stroke-width="1"/><text x="725" y="509" font-family="system-ui,sans-serif" font-size="11" fill="#c0caf5" text-anchor="middle" font-weight="normal">Send</text>
+
+  <!-- Annotations with labels -->
+  <text x="630" y="30" font-family="system-ui,sans-serif" font-size="11" fill="#ff6b6b" text-anchor="start" font-weight="700">① 헤더 + 인증 뱃지</text>
+  <line x1="628" y1="26" x2="610" y2="30" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <text x="630" y="95" font-family="system-ui,sans-serif" font-size="11" fill="#ff6b6b" text-anchor="start" font-weight="700">② 컨트롤 버튼 바</text>
+  <line x1="628" y1="91" x2="475" y2="91" stroke="#ff6b6b" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <text x="35" y="560" font-family="system-ui,sans-serif" font-size="11" fill="#ff6b6b" text-anchor="start" font-weight="700">③ 좌측 패널</text>
+  <text x="35" y="575" font-family="system-ui,sans-serif" font-size="10" fill="#ff6b6b" text-anchor="start" font-weight="700">(세션/설정/컨텍스트/변경)</text>
+  <text x="540" y="560" font-family="system-ui,sans-serif" font-size="11" fill="#ff6b6b" text-anchor="start" font-weight="700">④ 우측 채팅 패널</text>
+  <text x="540" y="575" font-family="system-ui,sans-serif" font-size="10" fill="#ff6b6b" text-anchor="start" font-weight="700">(메시지/프리뷰/입력)</text>
+</svg>
