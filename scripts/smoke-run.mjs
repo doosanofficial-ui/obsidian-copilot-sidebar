@@ -116,12 +116,16 @@ const events = {
   detachedTypes: [],
   notices: [],
   modifiedFiles: [],
+  createdFolders: [],
+  createdFiles: [],
   commandIds: []
 };
 
 const noteFile = new MockTFile("Inbox.md");
 let noteContent = "# Inbox\n\nInitial note text.";
 let opened = false;
+const createdFolders = new Set();
+const createdFiles = new Map([[noteFile.path, noteFile]]);
 
 const leaf = {
   async setViewState(state) {
@@ -164,7 +168,23 @@ const app = {
       return noteContent;
     },
     getAbstractFileByPath(filePath) {
-      return filePath === noteFile.path ? noteFile : null;
+      if (createdFiles.has(filePath)) {
+        return createdFiles.get(filePath);
+      }
+      if (createdFolders.has(filePath)) {
+        return { path: filePath };
+      }
+      return null;
+    },
+    async createFolder(folderPath) {
+      createdFolders.add(folderPath);
+      events.createdFolders.push(folderPath);
+    },
+    async create(filePath, content) {
+      const file = new MockTFile(filePath);
+      createdFiles.set(filePath, file);
+      events.createdFiles.push({ path: filePath, size: String(content).length });
+      return file;
     },
     async modify(file, content) {
       noteContent = content;
@@ -214,6 +234,7 @@ try {
   const requiredCommands = [
     "apply-pending-changes",
     "ask-about-current-note",
+    "capture-beta-feedback-note",
     "copy-diagnostics-summary",
     "open-copilot-sidebar",
     "open-sidebar-settings-panel",
@@ -240,6 +261,7 @@ try {
   const openCommand = plugin.__commands.find((command) => command.id === "open-copilot-sidebar");
   const startSessionCommand = plugin.__commands.find((command) => command.id === "start-new-chat-session");
   const applyCommand = plugin.__commands.find((command) => command.id === "apply-pending-changes");
+  const captureFeedbackCommand = plugin.__commands.find((command) => command.id === "capture-beta-feedback-note");
   const copyDiagnosticsCommand = plugin.__commands.find((command) => command.id === "copy-diagnostics-summary");
   const openSettingsCommand = plugin.__commands.find((command) => command.id === "open-sidebar-settings-panel");
   const refreshAuthCommand = plugin.__commands.find((command) => command.id === "refresh-auth-status");
@@ -249,6 +271,7 @@ try {
   assert.ok(openCommand, "open command should exist");
   assert.ok(startSessionCommand, "start session command should exist");
   assert.ok(applyCommand, "apply command should exist");
+  assert.ok(captureFeedbackCommand, "capture feedback command should exist");
   assert.ok(copyDiagnosticsCommand, "copy diagnostics command should exist");
   assert.ok(openSettingsCommand, "open settings command should exist");
   assert.ok(refreshAuthCommand, "refresh auth command should exist");
@@ -259,6 +282,7 @@ try {
   await openSettingsCommand.callback();
   await startSessionCommand.callback();
   await applyCommand.callback();
+  await captureFeedbackCommand.callback();
   await copyDiagnosticsCommand.callback();
   await refreshAuthCommand.callback();
   await retryFailedPromptCommand.callback();
@@ -269,8 +293,11 @@ try {
   assert.equal(events.setViewStateCalls.length, 1, "setViewState should be called once");
   assert.ok(events.revealLeafCalls >= 1, "revealLeaf should be called at least once");
   assert.ok(events.notices.includes("No pending changes to apply."), "apply command should show empty-state notice");
+  assert.ok(events.notices.some((notice) => notice.startsWith("Beta feedback note created:")), "capture feedback should create a feedback note");
   assert.ok(events.notices.includes("No failed prompt to retry."), "retry command should show empty-state notice");
   assert.ok(events.notices.includes("No applied change to undo."), "undo command should show empty-state notice");
+  assert.ok(events.createdFolders.includes("Copilot Sidebar Feedback"), "feedback folder should be created");
+  assert.ok(events.createdFiles.length >= 1, "at least one feedback file should be created");
 
   await plugin.onunload();
   assert.deepEqual(events.detachedTypes, ["copilot-sidebar-view"], "detachLeavesOfType call mismatch");

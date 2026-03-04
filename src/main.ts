@@ -9,6 +9,7 @@ const STREAM_DELAY_MS = 30;
 const STREAM_RENDER_INTERVAL_MS = 90;
 const STREAM_RENDER_BATCH_TOKENS = 6;
 const PREVIEW_MAX_LINES = 120;
+const BETA_FEEDBACK_FOLDER = "Copilot Sidebar Feedback";
 
 type AuthState = "logged-in" | "no-entitlement" | "token-expired" | "offline";
 type ContextPolicy = "selection-first" | "note-only";
@@ -94,6 +95,7 @@ interface CopilotSidebarSettings {
   changeApplyPolicy: ChangeApplyPolicy;
   retryFailedPrompt: boolean;
   lastFailedPrompt: string;
+  lastFeedbackNotePath: string;
   diagnostics: ChatDiagnostics;
   debugLogging: boolean;
 }
@@ -120,6 +122,7 @@ interface SidebarSnapshot {
   changeApplyPolicy: ChangeApplyPolicy;
   retryFailedPrompt: boolean;
   lastFailedPrompt: string;
+  lastFeedbackNotePath: string;
   diagnostics: ChatDiagnostics;
   debugLogging: boolean;
   isStreaming: boolean;
@@ -172,6 +175,7 @@ function defaultSettings(): CopilotSidebarSettings {
     changeApplyPolicy: "confirm-write",
     retryFailedPrompt: true,
     lastFailedPrompt: "",
+    lastFeedbackNotePath: "",
     diagnostics: defaultDiagnostics(),
     debugLogging: false
   };
@@ -425,6 +429,9 @@ function normalizeSettings(raw: unknown): CopilotSidebarSettings {
     lastFailedPrompt: typeof source.lastFailedPrompt === "string"
       ? source.lastFailedPrompt
       : fallback.lastFailedPrompt,
+    lastFeedbackNotePath: typeof source.lastFeedbackNotePath === "string"
+      ? source.lastFeedbackNotePath
+      : fallback.lastFeedbackNotePath,
     diagnostics,
     debugLogging: Boolean(source.debugLogging)
   };
@@ -485,6 +492,10 @@ class CopilotSidebarView extends ItemView {
       text: "Copy Diagnostics",
       cls: "copilot-button"
     }) as HTMLButtonElement;
+    const captureFeedbackButton = controlRow.createEl("button", {
+      text: "Capture Feedback",
+      cls: "copilot-button"
+    }) as HTMLButtonElement;
 
     const layout = root.createDiv({ cls: "copilot-sidebar-layout" });
     const leftPane = layout.createDiv({ cls: "copilot-sidebar-pane copilot-sidebar-pane-sessions" });
@@ -538,6 +549,10 @@ class CopilotSidebarView extends ItemView {
 
     copyDiagnosticsButton.addEventListener("click", () => {
       void this.plugin.copyDiagnosticsSummary();
+    });
+
+    captureFeedbackButton.addEventListener("click", () => {
+      void this.plugin.captureBetaFeedbackNote();
     });
 
     composerButton.addEventListener("click", () => {
@@ -718,6 +733,10 @@ class CopilotSidebarView extends ItemView {
       ? failedPrompt.slice(0, 120)
       : "None";
     panel.createDiv({ text: `Last failed prompt: ${failedText}`, cls: "copilot-setting-hint" });
+    const feedbackPath = snapshot.lastFeedbackNotePath.trim().length > 0
+      ? snapshot.lastFeedbackNotePath
+      : "None";
+    panel.createDiv({ text: `Last feedback note: ${feedbackPath}`, cls: "copilot-setting-hint" });
 
     const diagnostics = snapshot.diagnostics;
     const diagnosticsLines = [
@@ -981,6 +1000,14 @@ export default class CopilotSidebarPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "capture-beta-feedback-note",
+      name: "Capture beta feedback note",
+      callback: async () => {
+        await this.captureBetaFeedbackNote();
+      }
+    });
+
+    this.addCommand({
       id: "refresh-auth-status",
       name: "Refresh auth status",
       callback: async () => {
@@ -1031,6 +1058,7 @@ export default class CopilotSidebarPlugin extends Plugin {
       changeApplyPolicy: this.settings.changeApplyPolicy,
       retryFailedPrompt: this.settings.retryFailedPrompt,
       lastFailedPrompt: this.settings.lastFailedPrompt,
+      lastFeedbackNotePath: this.settings.lastFeedbackNotePath,
       diagnostics: { ...this.settings.diagnostics },
       debugLogging: this.settings.debugLogging,
       isStreaming: this.streaming
@@ -1098,6 +1126,46 @@ export default class CopilotSidebarPlugin extends Plugin {
     console.info("[copilot-sidebar] diagnostics-summary\n" + summary);
     new Notice("Diagnostics summary ready in console (clipboard unavailable).");
     await this.persistAndRender();
+  }
+
+  async captureBetaFeedbackNote(): Promise<void> {
+    const existingFolder = this.app.vault.getAbstractFileByPath(BETA_FEEDBACK_FOLDER);
+    if (existingFolder instanceof TFile) {
+      this.recordError("filesystem", `${BETA_FEEDBACK_FOLDER} exists as a file, not a folder.`);
+      new Notice("Cannot capture feedback: target folder path is already a file.");
+      await this.persistAndRender();
+      return;
+    }
+
+    if (!existingFolder) {
+      try {
+        await this.app.vault.createFolder(BETA_FEEDBACK_FOLDER);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!containsAny(message, ["already exists"])) {
+          this.recordError("filesystem", `Failed to create feedback folder: ${message}`);
+          new Notice("Cannot capture feedback note. Failed to create folder.");
+          await this.persistAndRender();
+          return;
+        }
+      }
+    }
+
+    const feedbackPath = `${BETA_FEEDBACK_FOLDER}/${this.createFeedbackFileName()}`;
+    const content = this.buildBetaFeedbackNoteContent();
+
+    try {
+      const createdFile = await this.app.vault.create(feedbackPath, content);
+      this.settings.lastFeedbackNotePath = createdFile.path;
+      this.clearError();
+      await this.persistAndRender();
+      new Notice(`Beta feedback note created: ${createdFile.path}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.recordError("filesystem", `Failed to create feedback note: ${message}`);
+      new Notice("Cannot capture feedback note. See diagnostics for details.");
+      await this.persistAndRender();
+    }
   }
 
   async startNewSession(): Promise<void> {
@@ -1460,6 +1528,55 @@ export default class CopilotSidebarPlugin extends Plugin {
       `lastErrorCategory=${d.lastErrorCategory}`,
       `lastErrorMessage=${d.lastErrorMessage || "none"}`,
       `diagnosticsUpdatedAt=${new Date(d.updatedAt).toISOString()}`
+    ].join("\n");
+  }
+
+  private createFeedbackFileName(): string {
+    const now = new Date();
+    const yyyy = String(now.getFullYear());
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const hh = String(now.getHours()).padStart(2, "0");
+    const min = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    const ms = String(now.getMilliseconds()).padStart(3, "0");
+    return `feedback-${yyyy}${mm}${dd}-${hh}${min}${ss}-${ms}.md`;
+  }
+
+  private buildBetaFeedbackNoteContent(): string {
+    const session = this.ensureActiveSession();
+    const activePath = this.app.workspace.getActiveFile()?.path ?? "<none>";
+    const recentMessages = session.messages
+      .slice(-6)
+      .map((message) => `- ${message.role}: ${message.content.slice(0, 200)}`)
+      .join("\n");
+
+    return [
+      "# Copilot Sidebar Beta Feedback",
+      "",
+      `- Captured at: ${new Date().toISOString()}`,
+      `- Active note: ${activePath}`,
+      `- Session: ${session.title} (${session.id})`,
+      `- Session message count: ${session.messages.length}`,
+      `- Pending changes: ${this.settings.pendingChanges.length}`,
+      "",
+      "## Feedback",
+      "- What did you try?",
+      "- What worked well?",
+      "- What felt confusing or slow?",
+      "- What outcome did you expect?",
+      "",
+      "## Recent Chat Context",
+      recentMessages.length > 0 ? recentMessages : "- <no recent messages>",
+      "",
+      "## Diagnostics",
+      "```text",
+      this.buildDiagnosticsSummary(),
+      "```",
+      "",
+      "## Notes",
+      "- Add screenshots/log snippets if needed.",
+      "- Include reproduction steps for non-deterministic issues."
     ].join("\n");
   }
 
