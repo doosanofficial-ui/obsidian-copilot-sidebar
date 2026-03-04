@@ -1060,6 +1060,13 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       await this.persistAndRender();
       return;
     }
+    const currentContent = await this.app.vault.cachedRead(target);
+    if (currentContent !== change.before) {
+      this.recordError("validation", `Apply blocked because note changed: ${change.notePath}`);
+      new import_obsidian.Notice(`Cannot apply pending change: ${change.notePath} has changed since this suggestion was created.`);
+      await this.persistAndRender();
+      return;
+    }
     if (this.settings.changeApplyPolicy === "confirm-write") {
       const accepted = typeof window !== "undefined" ? window.confirm(`Apply pending change to ${change.notePath}?`) : true;
       if (!accepted) {
