@@ -4,12 +4,16 @@ const VIEW_TYPE_COPILOT_SIDEBAR = "copilot-sidebar-view";
 const MAX_SESSIONS = 20;
 const MAX_PENDING_CHANGES = 10;
 const MAX_ADDITIONAL_CONTEXT = 8;
+const MAX_MESSAGES_PER_SESSION = 200;
 const STREAM_DELAY_MS = 30;
+const STREAM_RENDER_INTERVAL_MS = 90;
+const STREAM_RENDER_BATCH_TOKENS = 6;
 const PREVIEW_MAX_LINES = 120;
 
 type AuthState = "logged-in" | "no-entitlement" | "token-expired" | "offline";
 type ContextPolicy = "selection-first" | "note-only";
 type ChangeApplyPolicy = "confirm-write" | "auto-apply";
+type ErrorCategory = "none" | "auth" | "network" | "entitlement" | "filesystem" | "validation" | "unknown";
 type MessageRole = "user" | "assistant" | "system";
 
 const RECOMMENDED_MODELS = ["gpt-5.3-codex", "gpt-4.1", "gpt-4o-mini"] as const;
@@ -66,6 +70,16 @@ interface AdditionalContextNote {
   content: string;
 }
 
+interface ChatDiagnostics {
+  lastFirstTokenLatencyMs: number;
+  lastResponseDurationMs: number;
+  lastResponseTokenCount: number;
+  lastStreamRenderCount: number;
+  lastErrorCategory: ErrorCategory;
+  lastErrorMessage: string;
+  updatedAt: number;
+}
+
 interface CopilotSidebarSettings {
   sessions: ChatSession[];
   activeSessionId: string;
@@ -80,6 +94,7 @@ interface CopilotSidebarSettings {
   changeApplyPolicy: ChangeApplyPolicy;
   retryFailedPrompt: boolean;
   lastFailedPrompt: string;
+  diagnostics: ChatDiagnostics;
   debugLogging: boolean;
 }
 
@@ -105,6 +120,7 @@ interface SidebarSnapshot {
   changeApplyPolicy: ChangeApplyPolicy;
   retryFailedPrompt: boolean;
   lastFailedPrompt: string;
+  diagnostics: ChatDiagnostics;
   debugLogging: boolean;
   isStreaming: boolean;
 }
@@ -156,7 +172,20 @@ function defaultSettings(): CopilotSidebarSettings {
     changeApplyPolicy: "confirm-write",
     retryFailedPrompt: true,
     lastFailedPrompt: "",
+    diagnostics: defaultDiagnostics(),
     debugLogging: false
+  };
+}
+
+function defaultDiagnostics(): ChatDiagnostics {
+  return {
+    lastFirstTokenLatencyMs: 0,
+    lastResponseDurationMs: 0,
+    lastResponseTokenCount: 0,
+    lastStreamRenderCount: 0,
+    lastErrorCategory: "none",
+    lastErrorMessage: "",
+    updatedAt: Date.now()
   };
 }
 
@@ -170,6 +199,16 @@ function isContextPolicy(value: unknown): value is ContextPolicy {
 
 function isChangeApplyPolicy(value: unknown): value is ChangeApplyPolicy {
   return value === "confirm-write" || value === "auto-apply";
+}
+
+function isErrorCategory(value: unknown): value is ErrorCategory {
+  return value === "none"
+    || value === "auth"
+    || value === "network"
+    || value === "entitlement"
+    || value === "filesystem"
+    || value === "validation"
+    || value === "unknown";
 }
 
 function isMessageRole(value: unknown): value is MessageRole {
@@ -239,6 +278,13 @@ function buildPreviewDiff(before: string, after: string): string {
   return out.join("\n");
 }
 
+function formatDurationMs(ms: number): string {
+  if (ms <= 0) {
+    return "n/a";
+  }
+  return `${Math.round(ms)}ms`;
+}
+
 function compactOutput(stdout: string, stderr: string): string {
   const joined = `${stdout}\n${stderr}`.replace(/\s+/g, " ").trim();
   return joined.length > 0 ? joined : "(no output)";
@@ -247,6 +293,51 @@ function compactOutput(stdout: string, stderr: string): string {
 function containsAny(source: string, patterns: string[]): boolean {
   const lowered = source.toLowerCase();
   return patterns.some((pattern) => lowered.includes(pattern));
+}
+
+function categoryFromAuthState(state: AuthState): ErrorCategory {
+  if (state === "token-expired") {
+    return "auth";
+  }
+  if (state === "offline") {
+    return "network";
+  }
+  if (state === "no-entitlement") {
+    return "entitlement";
+  }
+  return "none";
+}
+
+function normalizeDiagnostics(raw: unknown): ChatDiagnostics {
+  const fallback = defaultDiagnostics();
+  if (!raw || typeof raw !== "object") {
+    return fallback;
+  }
+
+  const source = raw as Partial<ChatDiagnostics>;
+  return {
+    lastFirstTokenLatencyMs: typeof source.lastFirstTokenLatencyMs === "number"
+      ? source.lastFirstTokenLatencyMs
+      : fallback.lastFirstTokenLatencyMs,
+    lastResponseDurationMs: typeof source.lastResponseDurationMs === "number"
+      ? source.lastResponseDurationMs
+      : fallback.lastResponseDurationMs,
+    lastResponseTokenCount: typeof source.lastResponseTokenCount === "number"
+      ? source.lastResponseTokenCount
+      : fallback.lastResponseTokenCount,
+    lastStreamRenderCount: typeof source.lastStreamRenderCount === "number"
+      ? source.lastStreamRenderCount
+      : fallback.lastStreamRenderCount,
+    lastErrorCategory: isErrorCategory(source.lastErrorCategory)
+      ? source.lastErrorCategory
+      : fallback.lastErrorCategory,
+    lastErrorMessage: typeof source.lastErrorMessage === "string"
+      ? source.lastErrorMessage
+      : fallback.lastErrorMessage,
+    updatedAt: typeof source.updatedAt === "number"
+      ? source.updatedAt
+      : fallback.updatedAt
+  };
 }
 
 function normalizeSettings(raw: unknown): CopilotSidebarSettings {
@@ -267,6 +358,7 @@ function normalizeSettings(raw: unknown): CopilotSidebarSettings {
       messages: Array.isArray(session.messages)
         ? session.messages
           .filter((message): message is ChatMessage => Boolean(message && typeof message === "object" && message.id))
+          .slice(-MAX_MESSAGES_PER_SESSION)
           .map((message) => {
             const role: MessageRole = isMessageRole(message.role) ? message.role : "user";
             return {
@@ -309,6 +401,7 @@ function normalizeSettings(raw: unknown): CopilotSidebarSettings {
     : [];
 
   const lastAppliedChange = normalizeAppliedChange(source.lastAppliedChange);
+  const diagnostics = normalizeDiagnostics(source.diagnostics);
 
   return {
     sessions: normalizedSessions,
@@ -332,6 +425,7 @@ function normalizeSettings(raw: unknown): CopilotSidebarSettings {
     lastFailedPrompt: typeof source.lastFailedPrompt === "string"
       ? source.lastFailedPrompt
       : fallback.lastFailedPrompt,
+    diagnostics,
     debugLogging: Boolean(source.debugLogging)
   };
 }
@@ -387,6 +481,10 @@ class CopilotSidebarView extends ItemView {
       text: "Retry Failed",
       cls: "copilot-button"
     }) as HTMLButtonElement;
+    const copyDiagnosticsButton = controlRow.createEl("button", {
+      text: "Copy Diagnostics",
+      cls: "copilot-button"
+    }) as HTMLButtonElement;
 
     const layout = root.createDiv({ cls: "copilot-sidebar-layout" });
     const leftPane = layout.createDiv({ cls: "copilot-sidebar-pane copilot-sidebar-pane-sessions" });
@@ -436,6 +534,10 @@ class CopilotSidebarView extends ItemView {
 
     retryFailedButton.addEventListener("click", () => {
       void this.plugin.retryLastFailedPrompt();
+    });
+
+    copyDiagnosticsButton.addEventListener("click", () => {
+      void this.plugin.copyDiagnosticsSummary();
     });
 
     composerButton.addEventListener("click", () => {
@@ -616,6 +718,19 @@ class CopilotSidebarView extends ItemView {
       ? failedPrompt.slice(0, 120)
       : "None";
     panel.createDiv({ text: `Last failed prompt: ${failedText}`, cls: "copilot-setting-hint" });
+
+    const diagnostics = snapshot.diagnostics;
+    const diagnosticsLines = [
+      `First token: ${formatDurationMs(diagnostics.lastFirstTokenLatencyMs)}`,
+      `Response duration: ${formatDurationMs(diagnostics.lastResponseDurationMs)}`,
+      `Response tokens: ${diagnostics.lastResponseTokenCount}`,
+      `Stream renders: ${diagnostics.lastStreamRenderCount}`,
+      `Last error: ${diagnostics.lastErrorCategory}`,
+      `Error detail: ${diagnostics.lastErrorMessage || "none"}`,
+      `Updated: ${new Date(diagnostics.updatedAt).toLocaleTimeString()}`
+    ];
+    const diagnosticsBox = panel.createEl("pre", { cls: "copilot-diagnostics-box" });
+    diagnosticsBox.setText(diagnosticsLines.join("\n"));
   }
 
   private renderPendingChanges(snapshot: SidebarSnapshot): void {
@@ -858,6 +973,14 @@ export default class CopilotSidebarPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "copy-diagnostics-summary",
+      name: "Copy diagnostics summary",
+      callback: async () => {
+        await this.copyDiagnosticsSummary();
+      }
+    });
+
+    this.addCommand({
       id: "refresh-auth-status",
       name: "Refresh auth status",
       callback: async () => {
@@ -908,6 +1031,7 @@ export default class CopilotSidebarPlugin extends Plugin {
       changeApplyPolicy: this.settings.changeApplyPolicy,
       retryFailedPrompt: this.settings.retryFailedPrompt,
       lastFailedPrompt: this.settings.lastFailedPrompt,
+      diagnostics: { ...this.settings.diagnostics },
       debugLogging: this.settings.debugLogging,
       isStreaming: this.streaming
     };
@@ -956,6 +1080,26 @@ export default class CopilotSidebarPlugin extends Plugin {
     await this.persistAndRender();
   }
 
+  async copyDiagnosticsSummary(): Promise<void> {
+    const summary = this.buildDiagnosticsSummary();
+    const clipboard = (globalThis as { navigator?: { clipboard?: { writeText?: (text: string) => Promise<void> } } })
+      .navigator?.clipboard;
+
+    if (clipboard?.writeText) {
+      try {
+        await clipboard.writeText(summary);
+        new Notice("Diagnostics summary copied to clipboard.");
+        return;
+      } catch (error) {
+        this.recordError("unknown", `Clipboard write failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    console.info("[copilot-sidebar] diagnostics-summary\n" + summary);
+    new Notice("Diagnostics summary ready in console (clipboard unavailable).");
+    await this.persistAndRender();
+  }
+
   async startNewSession(): Promise<void> {
     const session = createSession();
     this.settings.sessions = [session, ...this.settings.sessions].slice(0, MAX_SESSIONS);
@@ -993,6 +1137,14 @@ export default class CopilotSidebarPlugin extends Plugin {
     this.settings.authState = probe.state;
     this.settings.authDetail = probe.detail;
     this.settings.authCheckedAt = probe.checkedAt;
+
+    const authCategory = categoryFromAuthState(probe.state);
+    if (authCategory === "none") {
+      this.clearError();
+    } else {
+      this.recordError(authCategory, probe.detail);
+    }
+
     await this.persistAndRender();
 
     if (trigger === "manual") {
@@ -1182,12 +1334,15 @@ export default class CopilotSidebarPlugin extends Plugin {
   async applyPendingChange(changeId: string): Promise<void> {
     const change = this.settings.pendingChanges.find((item) => item.id === changeId);
     if (!change) {
+      this.recordError("validation", "Pending change id was not found during apply.");
       new Notice("Pending change not found.");
+      await this.persistAndRender();
       return;
     }
 
     const target = this.app.vault.getAbstractFileByPath(change.notePath);
     if (!(target instanceof TFile)) {
+      this.recordError("filesystem", `Apply target missing: ${change.notePath}`);
       new Notice(`Target note no longer exists: ${change.notePath}`);
       this.settings.pendingChanges = this.settings.pendingChanges.filter((item) => item.id !== changeId);
       this.syncSelectedPendingChange();
@@ -1200,12 +1355,15 @@ export default class CopilotSidebarPlugin extends Plugin {
         ? window.confirm(`Apply pending change to ${change.notePath}?`)
         : true;
       if (!accepted) {
+        this.recordError("validation", `Apply confirmation canceled for ${change.notePath}`);
         new Notice("Apply canceled by policy confirmation.");
+        await this.persistAndRender();
         return;
       }
     }
 
     await this.app.vault.modify(target, change.after);
+    this.clearError();
     this.settings.lastAppliedChange = {
       ...change,
       appliedAt: Date.now()
@@ -1220,7 +1378,9 @@ export default class CopilotSidebarPlugin extends Plugin {
     const beforeCount = this.settings.pendingChanges.length;
     this.settings.pendingChanges = this.settings.pendingChanges.filter((change) => change.id !== changeId);
     if (this.settings.pendingChanges.length === beforeCount) {
+      this.recordError("validation", "Discard requested for unknown pending change id.");
       new Notice("Pending change not found.");
+      await this.persistAndRender();
       return;
     }
 
@@ -1232,12 +1392,15 @@ export default class CopilotSidebarPlugin extends Plugin {
   async undoLastAppliedChange(): Promise<void> {
     const last = this.settings.lastAppliedChange;
     if (!last) {
+      this.recordError("validation", "Undo requested with no last applied change.");
       new Notice("No applied change to undo.");
+      await this.persistAndRender();
       return;
     }
 
     const target = this.app.vault.getAbstractFileByPath(last.notePath);
     if (!(target instanceof TFile)) {
+      this.recordError("filesystem", `Undo target missing: ${last.notePath}`);
       new Notice(`Cannot undo. Note not found: ${last.notePath}`);
       this.settings.lastAppliedChange = null;
       await this.persistAndRender();
@@ -1245,6 +1408,7 @@ export default class CopilotSidebarPlugin extends Plugin {
     }
 
     await this.app.vault.modify(target, last.before);
+    this.clearError();
     this.settings.lastAppliedChange = null;
     await this.persistAndRender();
     new Notice(`Reverted last applied change in ${last.notePath}`);
@@ -1253,7 +1417,9 @@ export default class CopilotSidebarPlugin extends Plugin {
   async applyNextPendingChange(): Promise<void> {
     const first = this.settings.pendingChanges[0];
     if (!first) {
+      this.recordError("validation", "Apply-next invoked with empty pending queue.");
       new Notice("No pending changes to apply.");
+      await this.persistAndRender();
       return;
     }
 
@@ -1269,11 +1435,51 @@ export default class CopilotSidebarPlugin extends Plugin {
 
     await this.refreshAuthStatus("manual");
     if (this.settings.authState !== "logged-in") {
+      this.recordError(categoryFromAuthState(this.settings.authState), `Retry blocked: auth=${this.settings.authState}`);
       new Notice(`Cannot retry while auth is ${this.settings.authState}.`);
+      await this.persistAndRender();
       return;
     }
 
     await this.sendUserMessage(lastFailed);
+  }
+
+  private buildDiagnosticsSummary(): string {
+    const d = this.settings.diagnostics;
+    return [
+      "Obsidian Copilot Sidebar Diagnostics",
+      `time=${new Date().toISOString()}`,
+      `authState=${this.settings.authState}`,
+      `model=${this.settings.model}`,
+      `contextPolicy=${this.settings.contextPolicy}`,
+      `changeApplyPolicy=${this.settings.changeApplyPolicy}`,
+      `firstTokenLatencyMs=${Math.round(d.lastFirstTokenLatencyMs)}`,
+      `responseDurationMs=${Math.round(d.lastResponseDurationMs)}`,
+      `responseTokenCount=${d.lastResponseTokenCount}`,
+      `streamRenderCount=${d.lastStreamRenderCount}`,
+      `lastErrorCategory=${d.lastErrorCategory}`,
+      `lastErrorMessage=${d.lastErrorMessage || "none"}`,
+      `diagnosticsUpdatedAt=${new Date(d.updatedAt).toISOString()}`
+    ].join("\n");
+  }
+
+  private trimSessionMessages(session: ChatSession): void {
+    if (session.messages.length <= MAX_MESSAGES_PER_SESSION) {
+      return;
+    }
+    session.messages = session.messages.slice(-MAX_MESSAGES_PER_SESSION);
+  }
+
+  private recordError(category: ErrorCategory, message: string): void {
+    this.settings.diagnostics.lastErrorCategory = category;
+    this.settings.diagnostics.lastErrorMessage = message;
+    this.settings.diagnostics.updatedAt = Date.now();
+  }
+
+  private clearError(): void {
+    this.settings.diagnostics.lastErrorCategory = "none";
+    this.settings.diagnostics.lastErrorMessage = "";
+    this.settings.diagnostics.updatedAt = Date.now();
   }
 
   async sendUserMessage(prompt: string, providedContext?: PromptContext): Promise<void> {
@@ -1284,6 +1490,7 @@ export default class CopilotSidebarPlugin extends Plugin {
 
     if (this.settings.retryFailedPrompt && this.settings.authState !== "logged-in") {
       this.settings.lastFailedPrompt = trimmed;
+      this.recordError(categoryFromAuthState(this.settings.authState), `Prompt queued for retry while auth=${this.settings.authState}`);
     }
 
     if (this.settings.debugLogging) {
@@ -1302,6 +1509,7 @@ export default class CopilotSidebarPlugin extends Plugin {
       content: trimmed,
       createdAt: Date.now()
     });
+    this.trimSessionMessages(session);
     session.updatedAt = Date.now();
 
     if (session.title === "New chat session") {
@@ -1316,6 +1524,7 @@ export default class CopilotSidebarPlugin extends Plugin {
       streaming: true
     };
     session.messages.push(assistantMessage);
+    this.trimSessionMessages(session);
 
     this.streaming = true;
     await this.persistAndRender();
@@ -1324,21 +1533,50 @@ export default class CopilotSidebarPlugin extends Plugin {
     const response = this.composeMockResponse(trimmed, context);
     const tokens = response.split(" ");
 
-    for (const token of tokens) {
+    const streamStartedAt = Date.now();
+    let firstTokenAt: number | null = null;
+    let lastRenderAt = 0;
+    let renderCount = 0;
+
+    for (let index = 0; index < tokens.length; index += 1) {
+      const token = tokens[index];
       assistantMessage.content = assistantMessage.content
         ? `${assistantMessage.content} ${token}`
         : token;
 
-      this.renderViews();
+      if (firstTokenAt === null) {
+        firstTokenAt = Date.now();
+      }
+
+      const now = Date.now();
+      const isBatchBoundary = (index + 1) % STREAM_RENDER_BATCH_TOKENS === 0;
+      const exceededRenderInterval = now - lastRenderAt >= STREAM_RENDER_INTERVAL_MS;
+      const isFinalToken = index === tokens.length - 1;
+
+      if (isBatchBoundary || exceededRenderInterval || isFinalToken) {
+        this.renderViews();
+        lastRenderAt = now;
+        renderCount += 1;
+      }
+
       await this.delay(STREAM_DELAY_MS);
     }
+
+    const streamFinishedAt = Date.now();
 
     assistantMessage.streaming = false;
     session.updatedAt = Date.now();
     this.streaming = false;
 
+    this.settings.diagnostics.lastFirstTokenLatencyMs = firstTokenAt ? (firstTokenAt - streamStartedAt) : 0;
+    this.settings.diagnostics.lastResponseDurationMs = streamFinishedAt - streamStartedAt;
+    this.settings.diagnostics.lastResponseTokenCount = tokens.length;
+    this.settings.diagnostics.lastStreamRenderCount = renderCount;
+    this.settings.diagnostics.updatedAt = streamFinishedAt;
+
     if (this.settings.authState === "logged-in") {
       this.settings.lastFailedPrompt = "";
+      this.clearError();
     }
 
     await this.maybeCreatePendingChange(trimmed, response, context);
