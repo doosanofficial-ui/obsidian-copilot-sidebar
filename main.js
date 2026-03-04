@@ -791,12 +791,17 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     const summary = this.buildDiagnosticsSummary();
     const clipboard = globalThis.navigator?.clipboard;
     if (clipboard?.writeText) {
-      await clipboard.writeText(summary);
-      new import_obsidian.Notice("Diagnostics summary copied to clipboard.");
-      return;
+      try {
+        await clipboard.writeText(summary);
+        new import_obsidian.Notice("Diagnostics summary copied to clipboard.");
+        return;
+      } catch (error) {
+        this.recordError("unknown", `Clipboard write failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
     console.info("[copilot-sidebar] diagnostics-summary\n" + summary);
     new import_obsidian.Notice("Diagnostics summary ready in console (clipboard unavailable).");
+    await this.persistAndRender();
   }
   async startNewSession() {
     const session = createSession();
@@ -987,6 +992,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     if (!change) {
       this.recordError("validation", "Pending change id was not found during apply.");
       new import_obsidian.Notice("Pending change not found.");
+      await this.persistAndRender();
       return;
     }
     const target = this.app.vault.getAbstractFileByPath(change.notePath);
@@ -1003,6 +1009,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
       if (!accepted) {
         this.recordError("validation", `Apply confirmation canceled for ${change.notePath}`);
         new import_obsidian.Notice("Apply canceled by policy confirmation.");
+        await this.persistAndRender();
         return;
       }
     }
@@ -1023,6 +1030,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     if (this.settings.pendingChanges.length === beforeCount) {
       this.recordError("validation", "Discard requested for unknown pending change id.");
       new import_obsidian.Notice("Pending change not found.");
+      await this.persistAndRender();
       return;
     }
     this.syncSelectedPendingChange();
@@ -1034,6 +1042,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     if (!last) {
       this.recordError("validation", "Undo requested with no last applied change.");
       new import_obsidian.Notice("No applied change to undo.");
+      await this.persistAndRender();
       return;
     }
     const target = this.app.vault.getAbstractFileByPath(last.notePath);
@@ -1055,6 +1064,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     if (!first) {
       this.recordError("validation", "Apply-next invoked with empty pending queue.");
       new import_obsidian.Notice("No pending changes to apply.");
+      await this.persistAndRender();
       return;
     }
     await this.applyPendingChange(first.id);
@@ -1069,6 +1079,7 @@ var CopilotSidebarPlugin = class extends import_obsidian.Plugin {
     if (this.settings.authState !== "logged-in") {
       this.recordError(categoryFromAuthState(this.settings.authState), `Retry blocked: auth=${this.settings.authState}`);
       new import_obsidian.Notice(`Cannot retry while auth is ${this.settings.authState}.`);
+      await this.persistAndRender();
       return;
     }
     await this.sendUserMessage(lastFailed);

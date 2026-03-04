@@ -1086,13 +1086,18 @@ export default class CopilotSidebarPlugin extends Plugin {
       .navigator?.clipboard;
 
     if (clipboard?.writeText) {
-      await clipboard.writeText(summary);
-      new Notice("Diagnostics summary copied to clipboard.");
-      return;
+      try {
+        await clipboard.writeText(summary);
+        new Notice("Diagnostics summary copied to clipboard.");
+        return;
+      } catch (error) {
+        this.recordError("unknown", `Clipboard write failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
 
     console.info("[copilot-sidebar] diagnostics-summary\n" + summary);
     new Notice("Diagnostics summary ready in console (clipboard unavailable).");
+    await this.persistAndRender();
   }
 
   async startNewSession(): Promise<void> {
@@ -1331,6 +1336,7 @@ export default class CopilotSidebarPlugin extends Plugin {
     if (!change) {
       this.recordError("validation", "Pending change id was not found during apply.");
       new Notice("Pending change not found.");
+      await this.persistAndRender();
       return;
     }
 
@@ -1351,6 +1357,7 @@ export default class CopilotSidebarPlugin extends Plugin {
       if (!accepted) {
         this.recordError("validation", `Apply confirmation canceled for ${change.notePath}`);
         new Notice("Apply canceled by policy confirmation.");
+        await this.persistAndRender();
         return;
       }
     }
@@ -1373,6 +1380,7 @@ export default class CopilotSidebarPlugin extends Plugin {
     if (this.settings.pendingChanges.length === beforeCount) {
       this.recordError("validation", "Discard requested for unknown pending change id.");
       new Notice("Pending change not found.");
+      await this.persistAndRender();
       return;
     }
 
@@ -1386,6 +1394,7 @@ export default class CopilotSidebarPlugin extends Plugin {
     if (!last) {
       this.recordError("validation", "Undo requested with no last applied change.");
       new Notice("No applied change to undo.");
+      await this.persistAndRender();
       return;
     }
 
@@ -1410,6 +1419,7 @@ export default class CopilotSidebarPlugin extends Plugin {
     if (!first) {
       this.recordError("validation", "Apply-next invoked with empty pending queue.");
       new Notice("No pending changes to apply.");
+      await this.persistAndRender();
       return;
     }
 
@@ -1427,6 +1437,7 @@ export default class CopilotSidebarPlugin extends Plugin {
     if (this.settings.authState !== "logged-in") {
       this.recordError(categoryFromAuthState(this.settings.authState), `Retry blocked: auth=${this.settings.authState}`);
       new Notice(`Cannot retry while auth is ${this.settings.authState}.`);
+      await this.persistAndRender();
       return;
     }
 
