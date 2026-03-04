@@ -96,6 +96,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 8px;
+  overflow: auto;
 }
 
 .copilot-pane-title {
@@ -107,12 +108,53 @@
 }
 
 .copilot-session-list,
+.copilot-settings-panel,
 .copilot-context-list,
 .copilot-pending-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-height: 0;
+}
+
+.copilot-settings-panel {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 6px;
+  background: var(--background-secondary);
+}
+
+.copilot-setting-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.copilot-setting-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.copilot-setting-select {
+  width: 100%;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+.copilot-setting-checkbox {
+  margin: 0;
+}
+
+.copilot-setting-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 6px;
 }
 
 .copilot-context-row {
