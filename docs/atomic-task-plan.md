@@ -100,3 +100,12 @@
 | M1-C02 | entitlement/no-entitlement 상태 매핑 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
 | M1-C03 | 수동 재검증 명령/버튼 연계 | Copilot CLI | `npm run verify:e2e` |
 | M1-CL01 | M1 변경의 Cloud 검증 실행 | Cloud Agent | `npm run cloud:dispatch` 후 `npm run cloud:status`에서 최신 run 확인 |
+
+## 11) Iteration 6 (M4 Settings + Recovery) 템플릿
+
+| ID | 목표 | 담당 | 독립 검증 기준 |
+|---|---|---|---|
+| M4-C01 | 사이드바 설정 패널(모델/컨텍스트 정책/쓰기 정책) 구현 | Copilot CLI | `npm run check && npm run build` |
+| M4-C02 | 쓰기 적용 정책(confirm/auto) 반영 | Copilot CLI | `npm run smoke:run && npm run smoke:assert` |
+| M4-C03 | 실패 프롬프트 저장/재시도 명령 및 UI 연계 | Copilot CLI | `npm run verify:e2e` |
+| M4-CL01 | M4 변경의 Cloud 검증 실행 | Cloud Agent | `npm run cloud:dispatch` 후 `npm run cloud:status`에서 최신 run 확인 |

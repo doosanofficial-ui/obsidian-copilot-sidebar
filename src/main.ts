@@ -9,7 +9,10 @@ const PREVIEW_MAX_LINES = 120;
 
 type AuthState = "logged-in" | "no-entitlement" | "token-expired" | "offline";
 type ContextPolicy = "selection-first" | "note-only";
+type ChangeApplyPolicy = "confirm-write" | "auto-apply";
 type MessageRole = "user" | "assistant" | "system";
+
+const RECOMMENDED_MODELS = ["gpt-5.3-codex", "gpt-4.1", "gpt-4o-mini"] as const;
 
 interface ChatMessage {
   id: string;
@@ -74,6 +77,9 @@ interface CopilotSidebarSettings {
   authCheckedAt: number;
   model: string;
   contextPolicy: ContextPolicy;
+  changeApplyPolicy: ChangeApplyPolicy;
+  retryFailedPrompt: boolean;
+  lastFailedPrompt: string;
   debugLogging: boolean;
 }
 
@@ -95,6 +101,11 @@ interface SidebarSnapshot {
   authDetail: string;
   authCheckedAt: number;
   model: string;
+  contextPolicy: ContextPolicy;
+  changeApplyPolicy: ChangeApplyPolicy;
+  retryFailedPrompt: boolean;
+  lastFailedPrompt: string;
+  debugLogging: boolean;
   isStreaming: boolean;
 }
 
@@ -103,6 +114,7 @@ interface ViewElements {
   authBadge: HTMLElement;
   authMeta: HTMLElement;
   sessionList: HTMLElement;
+  settingsPanel: HTMLElement;
   contextList: HTMLElement;
   pendingList: HTMLElement;
   messages: HTMLElement;
@@ -141,6 +153,9 @@ function defaultSettings(): CopilotSidebarSettings {
     authCheckedAt: Date.now(),
     model: "gpt-5.3-codex",
     contextPolicy: "selection-first",
+    changeApplyPolicy: "confirm-write",
+    retryFailedPrompt: true,
+    lastFailedPrompt: "",
     debugLogging: false
   };
 }
@@ -151,6 +166,10 @@ function isAuthState(value: unknown): value is AuthState {
 
 function isContextPolicy(value: unknown): value is ContextPolicy {
   return value === "selection-first" || value === "note-only";
+}
+
+function isChangeApplyPolicy(value: unknown): value is ChangeApplyPolicy {
+  return value === "confirm-write" || value === "auto-apply";
 }
 
 function isMessageRole(value: unknown): value is MessageRole {
@@ -304,6 +323,15 @@ function normalizeSettings(raw: unknown): CopilotSidebarSettings {
     authCheckedAt: typeof source.authCheckedAt === "number" ? source.authCheckedAt : fallback.authCheckedAt,
     model: typeof source.model === "string" && source.model.trim().length > 0 ? source.model : fallback.model,
     contextPolicy: isContextPolicy(source.contextPolicy) ? source.contextPolicy : fallback.contextPolicy,
+    changeApplyPolicy: isChangeApplyPolicy(source.changeApplyPolicy)
+      ? source.changeApplyPolicy
+      : fallback.changeApplyPolicy,
+    retryFailedPrompt: typeof source.retryFailedPrompt === "boolean"
+      ? source.retryFailedPrompt
+      : fallback.retryFailedPrompt,
+    lastFailedPrompt: typeof source.lastFailedPrompt === "string"
+      ? source.lastFailedPrompt
+      : fallback.lastFailedPrompt,
     debugLogging: Boolean(source.debugLogging)
   };
 }
@@ -355,11 +383,17 @@ class CopilotSidebarView extends ItemView {
       text: "Refresh Auth",
       cls: "copilot-button"
     }) as HTMLButtonElement;
+    const retryFailedButton = controlRow.createEl("button", {
+      text: "Retry Failed",
+      cls: "copilot-button"
+    }) as HTMLButtonElement;
 
     const layout = root.createDiv({ cls: "copilot-sidebar-layout" });
     const leftPane = layout.createDiv({ cls: "copilot-sidebar-pane copilot-sidebar-pane-sessions" });
     leftPane.createDiv({ text: "Sessions", cls: "copilot-pane-title" });
     const sessionList = leftPane.createDiv({ cls: "copilot-session-list" });
+    leftPane.createDiv({ text: "Settings", cls: "copilot-pane-title" });
+    const settingsPanel = leftPane.createDiv({ cls: "copilot-settings-panel" });
     leftPane.createDiv({ text: "Context Notes", cls: "copilot-pane-title" });
     const contextList = leftPane.createDiv({ cls: "copilot-context-list" });
     leftPane.createDiv({ text: "Pending Changes", cls: "copilot-pane-title" });
@@ -400,6 +434,10 @@ class CopilotSidebarView extends ItemView {
       void this.plugin.refreshAuthStatus("manual");
     });
 
+    retryFailedButton.addEventListener("click", () => {
+      void this.plugin.retryLastFailedPrompt();
+    });
+
     composerButton.addEventListener("click", () => {
       void this.submitComposer();
     });
@@ -416,6 +454,7 @@ class CopilotSidebarView extends ItemView {
       authBadge,
       authMeta: authDetail,
       sessionList,
+      settingsPanel,
       contextList,
       pendingList,
       messages,
@@ -450,6 +489,7 @@ class CopilotSidebarView extends ItemView {
     this.elements.authMeta.setText(`${compactDetail} | checked ${checkedAt}`);
 
     this.renderSessions(snapshot);
+    this.renderSettings(snapshot);
     this.renderContextNotes(snapshot);
     this.renderPendingChanges(snapshot);
     this.renderMessages(activeSession);
@@ -491,6 +531,91 @@ class CopilotSidebarView extends ItemView {
         void this.plugin.deleteSession(session.id);
       });
     }
+  }
+
+  private renderSettings(snapshot: SidebarSnapshot): void {
+    if (!this.elements) {
+      return;
+    }
+
+    const panel = this.elements.settingsPanel;
+    panel.empty();
+
+    const modelRow = panel.createDiv({ cls: "copilot-setting-row" });
+    modelRow.createDiv({ text: "Model", cls: "copilot-setting-label" });
+    const modelSelect = modelRow.createEl("select", { cls: "copilot-setting-select" }) as HTMLSelectElement;
+    for (const model of RECOMMENDED_MODELS) {
+      const option = modelSelect.createEl("option") as HTMLOptionElement;
+      option.value = model;
+      option.text = model;
+    }
+    if (!RECOMMENDED_MODELS.includes(snapshot.model as (typeof RECOMMENDED_MODELS)[number])) {
+      const customOption = modelSelect.createEl("option") as HTMLOptionElement;
+      customOption.value = snapshot.model;
+      customOption.text = `${snapshot.model} (custom)`;
+    }
+    modelSelect.value = snapshot.model;
+    modelSelect.addEventListener("change", () => {
+      void this.plugin.updateModel(modelSelect.value);
+    });
+
+    const contextRow = panel.createDiv({ cls: "copilot-setting-row" });
+    contextRow.createDiv({ text: "Context Policy", cls: "copilot-setting-label" });
+    const contextSelect = contextRow.createEl("select", { cls: "copilot-setting-select" }) as HTMLSelectElement;
+    const selectionOption = contextSelect.createEl("option") as HTMLOptionElement;
+    selectionOption.value = "selection-first";
+    selectionOption.text = "Selection First";
+    const noteOption = contextSelect.createEl("option") as HTMLOptionElement;
+    noteOption.value = "note-only";
+    noteOption.text = "Note Only";
+    contextSelect.value = snapshot.contextPolicy;
+    contextSelect.addEventListener("change", () => {
+      const nextPolicy = contextSelect.value === "note-only" ? "note-only" : "selection-first";
+      void this.plugin.updateContextPolicy(nextPolicy);
+    });
+
+    const applyPolicyRow = panel.createDiv({ cls: "copilot-setting-row" });
+    applyPolicyRow.createDiv({ text: "Write Policy", cls: "copilot-setting-label" });
+    const applyPolicySelect = applyPolicyRow.createEl("select", { cls: "copilot-setting-select" }) as HTMLSelectElement;
+    const confirmOption = applyPolicySelect.createEl("option") as HTMLOptionElement;
+    confirmOption.value = "confirm-write";
+    confirmOption.text = "Confirm Before Apply";
+    const autoOption = applyPolicySelect.createEl("option") as HTMLOptionElement;
+    autoOption.value = "auto-apply";
+    autoOption.text = "Auto Apply";
+    applyPolicySelect.value = snapshot.changeApplyPolicy;
+    applyPolicySelect.addEventListener("change", () => {
+      const nextPolicy = applyPolicySelect.value === "auto-apply" ? "auto-apply" : "confirm-write";
+      void this.plugin.updateChangeApplyPolicy(nextPolicy);
+    });
+
+    const debugRow = panel.createDiv({ cls: "copilot-setting-row" });
+    const debugToggle = debugRow.createEl("input", {
+      cls: "copilot-setting-checkbox",
+      attr: { type: "checkbox" }
+    }) as HTMLInputElement;
+    debugToggle.checked = snapshot.debugLogging;
+    debugRow.createDiv({ text: "Debug logging", cls: "copilot-setting-label" });
+    debugToggle.addEventListener("change", () => {
+      void this.plugin.updateDebugLogging(debugToggle.checked);
+    });
+
+    const retryRow = panel.createDiv({ cls: "copilot-setting-row" });
+    const retryToggle = retryRow.createEl("input", {
+      cls: "copilot-setting-checkbox",
+      attr: { type: "checkbox" }
+    }) as HTMLInputElement;
+    retryToggle.checked = snapshot.retryFailedPrompt;
+    retryRow.createDiv({ text: "Enable failed prompt retry", cls: "copilot-setting-label" });
+    retryToggle.addEventListener("change", () => {
+      void this.plugin.updateRetryFailedPrompt(retryToggle.checked);
+    });
+
+    const failedPrompt = snapshot.lastFailedPrompt.trim();
+    const failedText = failedPrompt.length > 0
+      ? failedPrompt.slice(0, 120)
+      : "None";
+    panel.createDiv({ text: `Last failed prompt: ${failedText}`, cls: "copilot-setting-hint" });
   }
 
   private renderPendingChanges(snapshot: SidebarSnapshot): void {
@@ -716,6 +841,23 @@ export default class CopilotSidebarPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "open-sidebar-settings-panel",
+      name: "Open sidebar settings panel",
+      callback: async () => {
+        await this.activateView();
+        new Notice("Open the Copilot Sidebar and use the Settings section.");
+      }
+    });
+
+    this.addCommand({
+      id: "retry-last-failed-prompt",
+      name: "Retry last failed prompt",
+      callback: async () => {
+        await this.retryLastFailedPrompt();
+      }
+    });
+
+    this.addCommand({
       id: "refresh-auth-status",
       name: "Refresh auth status",
       callback: async () => {
@@ -762,6 +904,11 @@ export default class CopilotSidebarPlugin extends Plugin {
       authDetail: this.settings.authDetail,
       authCheckedAt: this.settings.authCheckedAt,
       model: this.settings.model,
+      contextPolicy: this.settings.contextPolicy,
+      changeApplyPolicy: this.settings.changeApplyPolicy,
+      retryFailedPrompt: this.settings.retryFailedPrompt,
+      lastFailedPrompt: this.settings.lastFailedPrompt,
+      debugLogging: this.settings.debugLogging,
       isStreaming: this.streaming
     };
   }
@@ -776,6 +923,36 @@ export default class CopilotSidebarPlugin extends Plugin {
     }
 
     this.settings.activeSessionId = sessionId;
+    await this.persistAndRender();
+  }
+
+  async updateModel(model: string): Promise<void> {
+    const trimmed = model.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    this.settings.model = trimmed;
+    await this.persistAndRender();
+  }
+
+  async updateContextPolicy(contextPolicy: ContextPolicy): Promise<void> {
+    this.settings.contextPolicy = contextPolicy;
+    await this.persistAndRender();
+  }
+
+  async updateChangeApplyPolicy(changeApplyPolicy: ChangeApplyPolicy): Promise<void> {
+    this.settings.changeApplyPolicy = changeApplyPolicy;
+    await this.persistAndRender();
+  }
+
+  async updateRetryFailedPrompt(enabled: boolean): Promise<void> {
+    this.settings.retryFailedPrompt = enabled;
+    await this.persistAndRender();
+  }
+
+  async updateDebugLogging(enabled: boolean): Promise<void> {
+    this.settings.debugLogging = enabled;
     await this.persistAndRender();
   }
 
@@ -1018,6 +1195,16 @@ export default class CopilotSidebarPlugin extends Plugin {
       return;
     }
 
+    if (this.settings.changeApplyPolicy === "confirm-write") {
+      const accepted = typeof window !== "undefined"
+        ? window.confirm(`Apply pending change to ${change.notePath}?`)
+        : true;
+      if (!accepted) {
+        new Notice("Apply canceled by policy confirmation.");
+        return;
+      }
+    }
+
     await this.app.vault.modify(target, change.after);
     this.settings.lastAppliedChange = {
       ...change,
@@ -1073,10 +1260,39 @@ export default class CopilotSidebarPlugin extends Plugin {
     await this.applyPendingChange(first.id);
   }
 
+  async retryLastFailedPrompt(): Promise<void> {
+    const lastFailed = this.settings.lastFailedPrompt.trim();
+    if (!lastFailed) {
+      new Notice("No failed prompt to retry.");
+      return;
+    }
+
+    await this.refreshAuthStatus("manual");
+    if (this.settings.authState !== "logged-in") {
+      new Notice(`Cannot retry while auth is ${this.settings.authState}.`);
+      return;
+    }
+
+    await this.sendUserMessage(lastFailed);
+  }
+
   async sendUserMessage(prompt: string, providedContext?: PromptContext): Promise<void> {
     const trimmed = prompt.trim();
     if (!trimmed) {
       return;
+    }
+
+    if (this.settings.retryFailedPrompt && this.settings.authState !== "logged-in") {
+      this.settings.lastFailedPrompt = trimmed;
+    }
+
+    if (this.settings.debugLogging) {
+      console.info("[copilot-sidebar] sendUserMessage", {
+        authState: this.settings.authState,
+        promptLength: trimmed.length,
+        contextPolicy: this.settings.contextPolicy,
+        changeApplyPolicy: this.settings.changeApplyPolicy
+      });
     }
 
     const session = this.ensureActiveSession();
@@ -1120,6 +1336,10 @@ export default class CopilotSidebarPlugin extends Plugin {
     assistantMessage.streaming = false;
     session.updatedAt = Date.now();
     this.streaming = false;
+
+    if (this.settings.authState === "logged-in") {
+      this.settings.lastFailedPrompt = "";
+    }
 
     await this.maybeCreatePendingChange(trimmed, response, context);
     this.syncSelectedPendingChange();
@@ -1261,6 +1481,7 @@ export default class CopilotSidebarPlugin extends Plugin {
       `Prompt: ${prompt}`,
       `Primary context (${this.settings.contextPolicy}): ${primaryContext}`,
       `Secondary context: ${secondaryContext}`,
+      `Write policy: ${this.settings.changeApplyPolicy}`,
       `Merged additional context: ${additionalSummary}`,
       "Suggested next steps:",
       "1. Validate key claims in your note.",
@@ -1270,6 +1491,10 @@ export default class CopilotSidebarPlugin extends Plugin {
   }
 
   private async maybeCreatePendingChange(prompt: string, response: string, context: PromptContext): Promise<void> {
+    if (this.settings.authState !== "logged-in") {
+      return;
+    }
+
     if (!context.notePath || !context.noteContent) {
       return;
     }

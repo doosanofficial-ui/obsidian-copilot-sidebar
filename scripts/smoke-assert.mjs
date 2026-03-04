@@ -21,7 +21,9 @@ const requiredCommands = [
   "apply-pending-changes",
   "ask-about-current-note",
   "open-copilot-sidebar",
+  "open-sidebar-settings-panel",
   "refresh-auth-status",
+  "retry-last-failed-prompt",
   "start-new-chat-session",
   "undo-last-applied-change"
 ];

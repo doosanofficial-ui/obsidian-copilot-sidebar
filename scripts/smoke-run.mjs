@@ -215,7 +215,9 @@ try {
     "apply-pending-changes",
     "ask-about-current-note",
     "open-copilot-sidebar",
+    "open-sidebar-settings-panel",
     "refresh-auth-status",
+    "retry-last-failed-prompt",
     "start-new-chat-session",
     "undo-last-applied-change"
   ];
@@ -237,19 +239,25 @@ try {
   const openCommand = plugin.__commands.find((command) => command.id === "open-copilot-sidebar");
   const startSessionCommand = plugin.__commands.find((command) => command.id === "start-new-chat-session");
   const applyCommand = plugin.__commands.find((command) => command.id === "apply-pending-changes");
+  const openSettingsCommand = plugin.__commands.find((command) => command.id === "open-sidebar-settings-panel");
   const refreshAuthCommand = plugin.__commands.find((command) => command.id === "refresh-auth-status");
+  const retryFailedPromptCommand = plugin.__commands.find((command) => command.id === "retry-last-failed-prompt");
   const undoCommand = plugin.__commands.find((command) => command.id === "undo-last-applied-change");
 
   assert.ok(openCommand, "open command should exist");
   assert.ok(startSessionCommand, "start session command should exist");
   assert.ok(applyCommand, "apply command should exist");
+  assert.ok(openSettingsCommand, "open settings command should exist");
   assert.ok(refreshAuthCommand, "refresh auth command should exist");
+  assert.ok(retryFailedPromptCommand, "retry failed prompt command should exist");
   assert.ok(undoCommand, "undo command should exist");
 
   await openCommand.callback();
+  await openSettingsCommand.callback();
   await startSessionCommand.callback();
   await applyCommand.callback();
   await refreshAuthCommand.callback();
+  await retryFailedPromptCommand.callback();
   await undoCommand.callback();
 
   await view.onClose();
@@ -257,6 +265,7 @@ try {
   assert.equal(events.setViewStateCalls.length, 1, "setViewState should be called once");
   assert.ok(events.revealLeafCalls >= 1, "revealLeaf should be called at least once");
   assert.ok(events.notices.includes("No pending changes to apply."), "apply command should show empty-state notice");
+  assert.ok(events.notices.includes("No failed prompt to retry."), "retry command should show empty-state notice");
   assert.ok(events.notices.includes("No applied change to undo."), "undo command should show empty-state notice");
 
   await plugin.onunload();
